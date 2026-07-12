@@ -1,0 +1,17 @@
+{
+  "name": "storyboard-gen-backend",
+  "version": "1.0.0",
+  "description": "Backend proxy server for StoryBOARD GEN — handles LLM API calls to avoid CORS issues",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["storyboard", "ai", "proxy"],
+  "author": "Content-Gen",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}

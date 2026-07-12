@@ -1,0 +1,836 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>StoryBOARD GEN — AI Storyboard & Video Generator</title>
+<meta name="description" content="Generate storyboard video social media secara otomatis menggunakan AI. Support multi-provider: Anthropic, OpenAI, Gemini, dan lainnya."/>
+<meta name="keywords" content="storyboard generator, AI video, social media content, TikTok, YouTube Shorts, Reels"/>
+<meta name="author" content="Content-Gen"/>
+<meta property="og:title" content="StoryBOARD GEN — AI Storyboard & Video Generator"/>
+<meta property="og:description" content="Dari ide 1 kalimat ke storyboard terstruktur, siap generate jadi video."/>
+<meta property="og:type" content="website"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --black:#0A0A0A;--white:#FFFFFF;--yellow:#FFE500;--red:#FF2D20;--gray:#F2F2F2;--dgray:#D8D8D8;
+  --border:2.5px solid #0A0A0A;--shadow:4px 4px 0 #0A0A0A;--shadow-lg:6px 6px 0 #0A0A0A;
+}
+body{background:var(--white);font-family:'Space Grotesk',sans-serif;color:var(--black);min-height:100vh}
+.mono{font-family:'IBM Plex Mono',monospace}
+
+/* HEADER */
+.header{background:var(--yellow);border-bottom:var(--border);padding:18px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:22px;font-weight:900;letter-spacing:-1px;text-transform:uppercase}
+.logo span{color:var(--red)}
+.badge{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;background:var(--black);color:var(--yellow);padding:4px 10px;text-transform:uppercase;letter-spacing:1px}
+
+/* LAYOUT */
+.main{display:grid;grid-template-columns:320px 1fr;min-height:calc(100vh - 61px)}
+.sidebar{border-right:var(--border);background:var(--white);padding:24px;display:flex;flex-direction:column;gap:0}
+.content{background:var(--gray);padding:24px;overflow-y:auto}
+
+/* SECTION */
+.sec-label{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--black);background:var(--yellow);display:inline-block;padding:3px 8px;border:1.5px solid var(--black);margin-bottom:10px}
+
+/* PROVIDER GRID */
+.prov-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;border:var(--border);margin-bottom:20px}
+.prov{padding:9px 10px;cursor:pointer;background:var(--white);border-bottom:1.5px solid var(--black);border-right:1.5px solid var(--black);transition:background .1s}
+.prov:nth-child(2n){border-right:none}
+.prov:nth-last-child(-n+2){border-bottom:none}
+.prov.on{background:var(--yellow)}
+.prov-name{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.prov-tag{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#666;margin-top:1px}
+.prov.on .prov-tag{color:var(--black)}
+
+/* INPUTS */
+.field{margin-bottom:16px}
+.field label{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;display:block;margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;padding:9px 11px;border:var(--border);background:var(--white);font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:500;color:var(--black);outline:none;box-shadow:3px 3px 0 var(--black);transition:box-shadow .1s}
+.field input:focus,.field select:focus,.field textarea:focus{box-shadow:5px 5px 0 var(--black);background:var(--gray)}
+.field textarea{resize:vertical;min-height:80px;line-height:1.5}
+.note{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#888;margin-top:4px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* CHIPS */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.chip{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;padding:5px 10px;border:1.5px solid var(--black);cursor:pointer;background:var(--white);text-transform:uppercase;letter-spacing:.5px;transition:all .1s}
+.chip.on{background:var(--black);color:var(--yellow)}
+.chip:hover:not(.on){background:var(--dgray)}
+
+/* GENERATE BUTTON */
+.gen-btn{width:100%;padding:14px;background:var(--black);color:var(--yellow);border:var(--border);font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:900;text-transform:uppercase;letter-spacing:2px;cursor:pointer;box-shadow:var(--shadow-lg);transition:all .12s;margin-top:8px;position:relative;overflow:hidden}
+.gen-btn:hover{transform:translate(-2px,-2px);box-shadow:8px 8px 0 var(--black)}
+.gen-btn:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--black)}
+.gen-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:var(--shadow-lg)}
+
+/* CONTENT AREA — EMPTY STATE */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:400px;text-align:center}
+.empty-box{border:var(--border);padding:40px 32px;background:var(--white);box-shadow:var(--shadow-lg)}
+.empty-icon{font-size:48px;margin-bottom:16px}
+.empty-title{font-size:24px;font-weight:900;text-transform:uppercase;letter-spacing:-1px;margin-bottom:8px}
+.empty-sub{font-family:'IBM Plex Mono',monospace;font-size:12px;color:#888;line-height:1.6}
+
+/* STATUS */
+.status-bar{background:var(--black);color:var(--yellow);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:10px 14px;border:var(--border);margin-bottom:16px;display:none;align-items:center;gap:10px}
+.sp{width:12px;height:12px;border:2px solid #555;border-top-color:var(--yellow);border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ERROR */
+.err-bar{background:var(--red);color:var(--white);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:10px 14px;border:var(--border);margin-bottom:16px;display:none;line-height:1.5}
+
+/* META ROW */
+.meta-row{display:flex;flex-wrap:wrap;gap:0;border:var(--border);margin-bottom:20px;background:var(--white)}
+.meta-item{padding:8px 14px;border-right:1.5px solid var(--black);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;text-transform:uppercase}
+.meta-item:last-child{border-right:none}
+.meta-item span{display:block;font-size:9px;font-weight:400;color:#888;margin-bottom:1px;letter-spacing:.5px}
+
+/* TABS */
+.tabs{display:flex;border:var(--border);margin-bottom:16px;width:fit-content}
+.tab{padding:8px 18px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;background:var(--white);border:none;border-right:1.5px solid var(--black)}
+.tab:last-child{border-right:none}
+.tab.on{background:var(--black);color:var(--yellow)}
+
+/* SCENE GRID */
+.scene-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0;border:var(--border)}
+.scene-card{background:var(--white);border-right:1.5px solid var(--black);border-bottom:1.5px solid var(--black);padding:14px;position:relative;transition:all .1s}
+.scene-card:hover{background:var(--gray);transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--black);z-index:1}
+.sc-num{font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:var(--dgray);position:absolute;top:10px;right:12px;line-height:1}
+.sc-time{display:inline-block;background:var(--yellow);border:1.5px solid var(--black);font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;padding:2px 8px;margin-bottom:10px}
+.sc-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-top:8px;margin-bottom:2px}
+.sc-val{font-size:12px;font-weight:500;line-height:1.45;color:var(--black)}
+.sc-val.narr{color:var(--red);font-style:italic}
+
+/* JSON VIEW */
+.json-wrap{position:relative}
+.json-box{background:var(--black);border:var(--border);box-shadow:var(--shadow-lg);padding:16px;overflow:auto;max-height:420px}
+.json-box pre{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#a8ff78;line-height:1.7;white-space:pre-wrap;word-break:break-all}
+.copy-btn{position:absolute;top:-1px;right:0;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;padding:6px 12px;background:var(--yellow);border:var(--border);cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:3px 3px 0 var(--black);transition:all .1s}
+.copy-btn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--black)}
+
+/* TIPS */
+.tips-row{display:flex;gap:0;border:var(--border);margin-top:16px}
+.tip{flex:1;padding:10px 12px;border-right:1.5px solid var(--black);font-size:12px;font-weight:500;line-height:1.4}
+.tip:last-child{border-right:none}
+.tip-num{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--red);margin-bottom:4px}
+
+/* LOADING SKELETON */
+.skel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0;border:var(--border)}
+.skel-card{background:var(--white);border-right:1.5px solid var(--black);border-bottom:1.5px solid var(--black);padding:14px;min-height:180px}
+.skel-line{height:10px;background:var(--dgray);margin-bottom:10px;border-radius:0;animation:pulse 1.2s ease-in-out infinite}
+.skel-line.w60{width:60%}
+.skel-line.w80{width:80%}
+.skel-line.w40{width:40%}
+.skel-line.w100{width:100%}
+.skel-line.thick{height:16px;margin-bottom:14px}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+
+/* SCENE EDIT */
+.sc-val[contenteditable]{cursor:text;border-bottom:1px dashed transparent;transition:all .15s;padding:1px 2px;margin:-1px -2px}
+.sc-val[contenteditable]:hover{border-bottom-color:var(--dgray)}
+.sc-val[contenteditable]:focus{outline:none;background:var(--yellow);border-bottom-color:var(--black)}
+.sc-edit-hint{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#bbb;text-transform:uppercase;letter-spacing:1px;margin-top:8px;display:flex;align-items:center;gap:4px}
+
+/* HISTORY */
+.history-wrap{margin-top:auto;padding-top:16px;border-top:1.5px dashed var(--dgray)}
+.history-title{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.history-list{display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto}
+.history-item{padding:6px 8px;border:1.5px solid var(--dgray);cursor:pointer;font-size:11px;font-weight:500;line-height:1.3;transition:all .1s;display:flex;justify-content:space-between;align-items:center}
+.history-item:hover{border-color:var(--black);background:var(--gray);transform:translate(-1px,-1px);box-shadow:2px 2px 0 var(--black)}
+.history-item .hi-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-item .hi-time{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#888;flex-shrink:0;margin-left:6px}
+.history-empty{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#ccc;text-align:center;padding:8px}
+.history-clear{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;cursor:pointer;color:var(--red);background:none;border:none;text-transform:uppercase;letter-spacing:.5px}
+.history-clear:hover{text-decoration:underline}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--black);color:var(--yellow);font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;padding:10px 18px;border:var(--border);box-shadow:var(--shadow-lg);transform:translateY(100px);opacity:0;transition:all .3s ease;z-index:999;text-transform:uppercase;letter-spacing:1px}
+.toast.show{transform:translateY(0);opacity:1}
+
+/* DOWNLOAD BUTTON */
+.dl-btn{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;padding:6px 12px;background:var(--white);border:var(--border);cursor:pointer;text-transform:uppercase;letter-spacing:1px;box-shadow:3px 3px 0 var(--black);transition:all .1s;margin-left:8px}
+.dl-btn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--black)}
+
+/* CONNECTION INDICATOR */
+.conn-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.conn-dot.ok{background:#00C853}
+.conn-dot.err{background:var(--red)}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--gray)}
+::-webkit-scrollbar-thumb{background:var(--black)}
+
+@media(max-width:700px){
+  .main{grid-template-columns:1fr}
+  .sidebar{border-right:none;border-bottom:var(--border)}
+  .scene-grid{grid-template-columns:1fr 1fr}
+  .toast{left:16px;right:16px;bottom:16px}
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">Story<span>BOARD</span> GEN</div>
+  <div class="badge"><span class="mono" id="verBadge">v3.2 — MULTI-PROVIDER</span></div>
+</header>
+
+<div class="main">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sec-label">Provider</div>
+    <div class="prov-grid" id="provGrid">
+      <div class="prov on" data-p="anthropic"><div class="prov-name">Anthropic</div><div class="prov-tag">Claude</div></div>
+      <div class="prov" data-p="openai"><div class="prov-name">OpenAI</div><div class="prov-tag">GPT-4o</div></div>
+      <div class="prov" data-p="gemini"><div class="prov-name">Gemini</div><div class="prov-tag">Google AI</div></div>
+      <div class="prov" data-p="openrouter"><div class="prov-name">OpenRouter</div><div class="prov-tag">Multi-model</div></div>
+      <div class="prov" data-p="groq"><div class="prov-name">Groq</div><div class="prov-tag">Fast LLM</div></div>
+      <div class="prov" data-p="deepseek"><div class="prov-name">DeepSeek</div><div class="prov-tag">DeepSeek</div></div>
+      <div class="prov" data-p="mistral"><div class="prov-name">Mistral</div><div class="prov-tag">Mistral AI</div></div>
+      <div class="prov" data-p="custom"><div class="prov-name">Custom</div><div class="prov-tag">OpenAI-compat</div></div>
+    </div>
+
+    <div class="field">
+      <label>API Key</label>
+      <input type="password" id="apikey" placeholder="Masukkan API key..."/>
+      <p class="note" id="keynote">Anthropic: sk-ant-api03-...</p>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>Model</label>
+        <select id="model"></select>
+      </div>
+      <div class="field">
+        <label>Durasi</label>
+        <select id="dur">
+          <option value="10">10 dtk</option>
+          <option value="15" selected>15 dtk</option>
+          <option value="30">30 dtk</option>
+          <option value="60">60 dtk</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field" id="customUrlWrap" style="display:none">
+      <label>Base URL</label>
+      <input type="text" id="customUrl" placeholder="https://your-endpoint.com/v1"/>
+    </div>
+
+    <div class="field">
+      <label>Ide Konten</label>
+      <textarea id="idea" placeholder='Contoh: "Pekerja mini membangun Indomaret, ASMR, tangan manusia, 9:16"'></textarea>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>Rasio</label>
+        <select id="ratio">
+          <option value="9:16" selected>9:16 Shorts</option>
+          <option value="16:9">16:9 YouTube</option>
+          <option value="1:1">1:1 Square</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Narasi</label>
+        <select id="narr">
+          <option value="Indonesian">Indonesian</option>
+          <option value="English">English</option>
+          <option value="None">Tanpa narasi</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Platform</label>
+      <select id="plat">
+        <option>TikTok / Shorts / Reels</option>
+        <option>YouTube</option>
+        <option>Instagram</option>
+        <option>Twitter / X</option>
+      </select>
+    </div>
+
+    <div class="sec-label" style="margin-bottom:8px">Genre</div>
+    <div class="chips" id="chips">
+      <div class="chip on" data-v="ASMR Satisfying">ASMR</div>
+      <div class="chip" data-v="Tiny World">Tiny World</div>
+      <div class="chip" data-v="Tutorial">Tutorial</div>
+      <div class="chip" data-v="Comedy">Comedy</div>
+      <div class="chip" data-v="Educational">Edukasi</div>
+      <div class="chip" data-v="Crypto/Finance">Crypto</div>
+      <div class="chip" data-v="Aesthetic">Aesthetic</div>
+      <div class="chip" data-v="Affiliate">Affiliate</div>
+    </div>
+
+    <button class="gen-btn" id="gb" onclick="gen()">▶ Generate Storyboard</button>
+
+    <div class="history-wrap">
+      <div class="history-title">
+        <span>📂 History</span>
+        <button class="history-clear" id="clearHist" onclick="clearHistory()">Clear</button>
+      </div>
+      <div class="history-list" id="histList">
+        <div class="history-empty">Belum ada history</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- CONTENT -->
+  <main class="content" id="contentArea">
+    <div class="empty" id="emptyState">
+      <div class="empty-box">
+        <div class="empty-icon">🎬</div>
+        <div class="empty-title">Belum ada storyboard</div>
+        <div class="empty-sub">Isi form di kiri &amp; klik Generate<br/>untuk mulai breakdown scene lo.</div>
+      </div>
+    </div>
+
+    <div id="resultArea" style="display:none">
+      <div class="status-bar" id="stBar"></div>
+      <div class="err-bar" id="erBar" style="display:none"></div>
+
+      <div class="meta-row" id="metaRow"></div>
+
+      <div class="tabs">
+        <button class="tab on" onclick="switchTab('s')">Scenes</button>
+        <button class="tab" onclick="switchTab('j')">JSON</button>
+        <button class="tab" onclick="switchTab('t')">Tips</button>
+      </div>
+
+      <div id="scenesView"></div>
+      <div id="jsonView" style="display:none">
+        <div class="json-wrap">
+          <button class="copy-btn" onclick="copyJSON()">Copy JSON</button>
+          <button class="dl-btn" onclick="downloadJSON()">⬇ Download</button>
+          <div class="json-box"><pre id="jp"></pre></div>
+        </div>
+      </div>
+      <div id="tipsView" style="display:none"></div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   StoryBOARD GEN — v3.2
+   Phase 2.2: Backend proxy integration (no more CORS)
+   Phase 2.3: localStorage, history, scene editing, loading UX
+   ═══════════════════════════════════════════════════════════════ */
+
+// ─── PROVIDER CONFIG ──────────────────────────────────────────
+const PROVIDERS = {
+  anthropic: { note: 'sk-ant-api03-...', models: ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-haiku-4-5-20251001', 'claude-sonnet-4-5', 'claude-opus-4-5'] },
+  openai:    { note: 'sk-...',           models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo', 'o1-mini'] },
+  gemini:    { note: 'AIza...',          models: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.5-pro'] },
+  openrouter:{ note: 'sk-or-v1-...',     models: ['openai/gpt-4o', 'anthropic/claude-sonnet-4-5', 'google/gemini-2.0-flash-exp:free', 'deepseek/deepseek-chat', 'meta-llama/llama-3.3-70b-instruct:free', 'mistralai/mistral-7b-instruct:free'] },
+  groq:      { note: 'gsk_...',          models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'] },
+  deepseek:  { note: 'sk-...',           models: ['deepseek-chat', 'deepseek-reasoner'] },
+  mistral:   { note: '...',              models: ['mistral-large-latest', 'mistral-small-latest', 'open-mistral-7b'] },
+  custom:    { note: 'Your API key',     models: ['custom-model'] }
+};
+
+// ─── STATE ────────────────────────────────────────────────────
+let currentProvider = 'anthropic';
+let selectedGenres = ['ASMR Satisfying'];
+let currentJSON = null;
+let useBackend = false; // auto-detected
+
+// ─── STORAGE KEYS ─────────────────────────────────────────────
+const STORAGE = {
+  API_KEYS: 'sbgen_api_keys',      // { provider: key }
+  PREFS: 'sbgen_prefs',            // { provider, model, dur, ratio, plat, narr, genres }
+  HISTORY: 'sbgen_history',        // [ { id, title, timestamp, data } ]
+  CUSTOM_URL: 'sbgen_custom_url'
+};
+
+// ─── LOCALSTORAGE HELPERS ─────────────────────────────────────
+function saveToStorage(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* quota exceeded */ }
+}
+
+function loadFromStorage(key, fallback = null) {
+  try {
+    const val = localStorage.getItem(key);
+    return val ? JSON.parse(val) : fallback;
+  } catch (e) { return fallback; }
+}
+
+function saveApiKey(provider, key) {
+  const keys = loadFromStorage(STORAGE.API_KEYS, {});
+  keys[provider] = key;
+  saveToStorage(STORAGE.API_KEYS, keys);
+}
+
+function loadApiKey(provider) {
+  const keys = loadFromStorage(STORAGE.API_KEYS, {});
+  return keys[provider] || '';
+}
+
+function savePreferences() {
+  saveToStorage(STORAGE.PREFS, {
+    provider: currentProvider,
+    model: document.getElementById('model').value,
+    dur: document.getElementById('dur').value,
+    ratio: document.getElementById('ratio').value,
+    plat: document.getElementById('plat').value,
+    narr: document.getElementById('narr').value,
+    genres: selectedGenres
+  });
+}
+
+function loadPreferences() {
+  return loadFromStorage(STORAGE.PREFS, null);
+}
+
+// ─── TOAST NOTIFICATION ───────────────────────────────────────
+function showToast(message, duration = 2000) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), duration);
+}
+
+// ─── PROVIDER SELECTION ───────────────────────────────────────
+function setProvider(provider) {
+  // Save API key of previous provider
+  const prevKey = document.getElementById('apikey').value.trim();
+  if (prevKey) saveApiKey(currentProvider, prevKey);
+
+  currentProvider = provider;
+  document.querySelectorAll('.prov').forEach(el => el.classList.toggle('on', el.dataset.p === provider));
+
+  const config = PROVIDERS[provider];
+  document.getElementById('keynote').textContent = config.note;
+  document.getElementById('apikey').placeholder = config.note;
+
+  // Load saved API key for this provider
+  const savedKey = loadApiKey(provider);
+  document.getElementById('apikey').value = savedKey;
+
+  // Populate model dropdown
+  const modelSelect = document.getElementById('model');
+  modelSelect.innerHTML = config.models.map(m => `<option>${m}</option>`).join('');
+
+  // Show/hide custom URL field
+  document.getElementById('customUrlWrap').style.display = provider === 'custom' ? '' : 'none';
+
+  // Load custom URL if applicable
+  if (provider === 'custom') {
+    document.getElementById('customUrl').value = loadFromStorage(STORAGE.CUSTOM_URL, '');
+  }
+
+  savePreferences();
+}
+
+// ─── GENRE CHIPS ──────────────────────────────────────────────
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const value = chip.dataset.v;
+    if (chip.classList.contains('on')) {
+      if (selectedGenres.length > 1) {
+        chip.classList.remove('on');
+        selectedGenres = selectedGenres.filter(g => g !== value);
+      }
+    } else {
+      chip.classList.add('on');
+      selectedGenres.push(value);
+    }
+    savePreferences();
+  });
+});
+
+// ─── PROVIDER CLICK HANDLERS ──────────────────────────────────
+document.querySelectorAll('.prov').forEach(el => {
+  el.addEventListener('click', () => setProvider(el.dataset.p));
+});
+
+// ─── TAB SWITCHING ────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('on', ['s', 'j', 't'][i] === tab);
+  });
+  document.getElementById('scenesView').style.display = tab === 's' ? '' : 'none';
+  document.getElementById('jsonView').style.display = tab === 'j' ? '' : 'none';
+  document.getElementById('tipsView').style.display = tab === 't' ? '' : 'none';
+}
+
+// ─── COPY JSON ────────────────────────────────────────────────
+function copyJSON() {
+  if (!currentJSON) return;
+  navigator.clipboard.writeText(JSON.stringify(currentJSON, null, 2));
+  const btn = document.querySelector('.copy-btn');
+  btn.textContent = 'Copied!';
+  showToast('📋 JSON copied!');
+  setTimeout(() => btn.textContent = 'Copy JSON', 1500);
+}
+
+// ─── DOWNLOAD JSON ────────────────────────────────────────────
+function downloadJSON() {
+  if (!currentJSON) return;
+  const blob = new Blob([JSON.stringify(currentJSON, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `storyboard_${currentJSON.video_id || 'export'}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📥 JSON downloaded!');
+}
+
+// ─── STATUS & ERROR ───────────────────────────────────────────
+function setStatus(message) {
+  const el = document.getElementById('stBar');
+  el.style.display = message ? 'flex' : 'none';
+  el.innerHTML = message ? `<span class="sp"></span>${message}` : '';
+}
+
+function setError(message) {
+  const el = document.getElementById('erBar');
+  el.style.display = message ? '' : 'none';
+  el.innerHTML = message ? `<strong>ERROR:</strong> ${message}` : '';
+}
+
+// ─── LOADING SKELETON ─────────────────────────────────────────
+function showSkeleton() {
+  const count = Math.max(4, Math.round(parseInt(document.getElementById('dur').value) / 2));
+  const cards = Array.from({ length: count }, () => `
+    <div class="skel-card">
+      <div class="skel-line w40 thick"></div>
+      <div class="skel-line w60"></div>
+      <div class="skel-line w100"></div>
+      <div class="skel-line w80"></div>
+      <div class="skel-line w60"></div>
+      <div class="skel-line w100"></div>
+      <div class="skel-line w40"></div>
+    </div>
+  `).join('');
+  document.getElementById('scenesView').innerHTML = `<div class="skel-grid">${cards}</div>`;
+}
+
+// ─── RENDER STORYBOARD ────────────────────────────────────────
+function render(data) {
+  const scenes = data.scenes || [];
+
+  // Meta row
+  document.getElementById('metaRow').innerHTML = `
+    <div class="meta-item"><span>Durasi</span>${data.duration_total || '—'}</div>
+    <div class="meta-item"><span>Scenes</span>${scenes.length}</div>
+    <div class="meta-item"><span>Rasio</span>${data.aspect_ratio || '—'}</div>
+    <div class="meta-item"><span>Genre</span>${data.genre || selectedGenres.join(', ')}</div>
+    <div class="meta-item"><span>Provider</span>${currentProvider}</div>
+  `;
+
+  // Scene cards with inline editing
+  document.getElementById('scenesView').innerHTML = `<div class="scene-grid">${scenes.map((scene, idx) => `
+    <div class="scene-card">
+      <div class="sc-num">${String(scene.scene_num ?? scene.scene).padStart(2, '0')}</div>
+      <div class="sc-time">${scene.timing || '—'}</div>
+      ${scene.visual ? `<div class="sc-lbl">Visual</div><div class="sc-val" contenteditable="true" data-field="visual" data-idx="${idx}">${scene.visual}</div>` : ''}
+      ${scene.camera ? `<div class="sc-lbl">Camera</div><div class="sc-val" contenteditable="true" data-field="camera" data-idx="${idx}">${scene.camera}</div>` : ''}
+      ${scene.sfx ? `<div class="sc-lbl">SFX</div><div class="sc-val" contenteditable="true" data-field="sfx" data-idx="${idx}">${scene.sfx}</div>` : ''}
+      ${scene.narration && scene.narration !== 'null' ? `<div class="sc-lbl">Narasi</div><div class="sc-val narr" contenteditable="true" data-field="narration" data-idx="${idx}">"${scene.narration}"</div>` : ''}
+      ${scene.micro_action ? `<div class="sc-lbl">Micro Action</div><div class="sc-val" contenteditable="true" data-field="micro_action" data-idx="${idx}">${scene.micro_action}</div>` : ''}
+      <div class="sc-edit-hint">✏️ Click to edit</div>
+    </div>
+  `).join('')}</div>`;
+
+  // Attach edit listeners
+  document.querySelectorAll('.sc-val[contenteditable]').forEach(el => {
+    el.addEventListener('blur', () => {
+      const idx = parseInt(el.dataset.idx);
+      const field = el.dataset.field;
+      let value = el.textContent.trim();
+      // Remove surrounding quotes from narration
+      if (field === 'narration') value = value.replace(/^"|"$/g, '');
+      if (currentJSON && currentJSON.scenes[idx]) {
+        currentJSON.scenes[idx][field] = value;
+        document.getElementById('jp').textContent = JSON.stringify(currentJSON, null, 2);
+        showToast(`✏️ Scene ${idx + 1} updated`);
+      }
+    });
+    // Prevent newlines in contenteditable
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+    });
+  });
+
+  // Tips
+  const tips = data.tips || [];
+  document.getElementById('tipsView').innerHTML = tips.length
+    ? `<div class="tips-row">${tips.map((t, i) => `<div class="tip"><div class="tip-num">TIP ${String(i + 1).padStart(2, '0')}</div>${t}</div>`).join('')}</div>`
+    : '<p style="font-size:13px;color:#888">Tidak ada tips.</p>';
+}
+
+// ─── HISTORY MANAGEMENT ───────────────────────────────────────
+function getHistory() {
+  return loadFromStorage(STORAGE.HISTORY, []);
+}
+
+function addToHistory(data) {
+  const history = getHistory();
+  const entry = {
+    id: Date.now(),
+    title: data.title || data.concept || 'Untitled',
+    timestamp: new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+    provider: currentProvider,
+    data: data
+  };
+  history.unshift(entry);
+  // Keep max 20 entries
+  if (history.length > 20) history.pop();
+  saveToStorage(STORAGE.HISTORY, history);
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = getHistory();
+  const container = document.getElementById('histList');
+  if (history.length === 0) {
+    container.innerHTML = '<div class="history-empty">Belum ada history</div>';
+    return;
+  }
+  container.innerHTML = history.map(entry => `
+    <div class="history-item" onclick="loadHistory(${entry.id})" title="${entry.title}">
+      <span class="hi-title">${entry.title}</span>
+      <span class="hi-time">${entry.timestamp}</span>
+    </div>
+  `).join('');
+}
+
+function loadHistory(id) {
+  const history = getHistory();
+  const entry = history.find(h => h.id === id);
+  if (!entry) return;
+
+  currentJSON = entry.data;
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('resultArea').style.display = '';
+  document.getElementById('jp').textContent = JSON.stringify(currentJSON, null, 2);
+  render(currentJSON);
+  switchTab('s');
+  showToast('📂 Loaded from history');
+}
+
+function clearHistory() {
+  if (!confirm('Hapus semua history?')) return;
+  saveToStorage(STORAGE.HISTORY, []);
+  renderHistory();
+  showToast('🗑️ History cleared');
+}
+
+// ─── BACKEND DETECTION ────────────────────────────────────────
+async function detectBackend() {
+  try {
+    const response = await fetch('/api/health', { signal: AbortSignal.timeout(2000) });
+    if (response.ok) {
+      useBackend = true;
+      document.getElementById('verBadge').innerHTML = '<span class="conn-dot ok"></span>v3.2 — BACKEND CONNECTED';
+      console.log('[StoryBOARD] ✅ Backend detected');
+    }
+  } catch (e) {
+    useBackend = false;
+    document.getElementById('verBadge').innerHTML = '<span class="conn-dot err"></span>v3.2 — DIRECT MODE (CORS may block)';
+    console.log('[StoryBOARD] ⚠️ No backend — using direct API calls');
+  }
+}
+
+// ─── API CALL ─────────────────────────────────────────────────
+async function callAPI(apiKey, model, prompt) {
+  // If backend is available, use proxy (no CORS issues)
+  if (useBackend) {
+    const response = await fetch('/api/llm/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: currentProvider,
+        model: model,
+        apiKey: apiKey,
+        prompt: prompt,
+        customUrl: currentProvider === 'custom' ? document.getElementById('customUrl').value.trim() : undefined
+      })
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Backend error');
+    return result.text;
+  }
+
+  // Fallback: direct API calls (may hit CORS)
+  console.warn('[StoryBOARD] Using direct API call — CORS may block this request');
+
+  if (currentProvider === 'anthropic') {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-calls': 'true'
+      },
+      body: JSON.stringify({ model, max_tokens: 4096, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error?.message || `HTTP ${r.status}`); }
+    const d = await r.json();
+    return (d.content || []).map(b => b.text || '').join('');
+  }
+
+  if (currentProvider === 'gemini') {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7 } })
+    });
+    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error?.message || `HTTP ${r.status}`); }
+    const d = await r.json();
+    return d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  }
+
+  // OpenAI-compatible providers
+  const ENDPOINTS = {
+    openai: 'https://api.openai.com/v1/chat/completions',
+    openrouter: 'https://openrouter.ai/api/v1/chat/completions',
+    groq: 'https://api.groq.com/openai/v1/chat/completions',
+    deepseek: 'https://api.deepseek.com/v1/chat/completions',
+    mistral: 'https://api.mistral.ai/v1/chat/completions'
+  };
+  const baseUrl = currentProvider === 'custom'
+    ? (document.getElementById('customUrl').value.trim().replace(/\/$/, '') + '/chat/completions')
+    : ENDPOINTS[currentProvider];
+  const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` };
+  if (currentProvider === 'openrouter') {
+    headers['HTTP-Referer'] = 'https://storyboard-gen.app';
+    headers['X-Title'] = 'StoryBOARD GEN';
+  }
+  const r = await fetch(baseUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ model, max_tokens: 4096, messages: [{ role: 'user', content: prompt }], temperature: 0.7 })
+  });
+  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error?.message || `HTTP ${r.status}`); }
+  const d = await r.json();
+  return d.choices?.[0]?.message?.content || '';
+}
+
+// ─── GENERATE STORYBOARD ──────────────────────────────────────
+async function gen() {
+  const apiKey = document.getElementById('apikey').value.trim();
+  const idea = document.getElementById('idea').value.trim();
+  const model = document.getElementById('model').value;
+
+  if (!apiKey) { showToast('⚠️ Masukkan API key!'); return; }
+  if (!idea) { showToast('⚠️ Masukkan ide konten!'); return; }
+  if (currentProvider === 'custom' && !document.getElementById('customUrl').value.trim()) {
+    showToast('⚠️ Masukkan base URL!'); return;
+  }
+
+  // Save current API key & preferences
+  saveApiKey(currentProvider, apiKey);
+  if (currentProvider === 'custom') {
+    saveToStorage(STORAGE.CUSTOM_URL, document.getElementById('customUrl').value.trim());
+  }
+  savePreferences();
+
+  const dur = document.getElementById('dur').value;
+  const ratio = document.getElementById('ratio').value;
+  const plat = document.getElementById('plat').value;
+  const narr = document.getElementById('narr').value;
+  const sceneCount = Math.max(4, Math.round(parseInt(dur) / 2));
+
+  // Show loading state
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('resultArea').style.display = '';
+  setError('');
+  setStatus(`Generating via ${currentProvider} (${model})...`);
+  showSkeleton();
+  document.getElementById('gb').disabled = true;
+  document.getElementById('gb').textContent = '⏳ Generating...';
+
+  const prompt = `You are a viral short-form video storyboard expert.
+Content idea: "${idea}"
+Duration: ${dur} seconds | Ratio: ${ratio} | Platform: ${plat} | Genre: ${selectedGenres.join(', ')} | Narration: ${narr}
+Scenes: exactly ${sceneCount}
+Return ONLY valid JSON, no markdown fences, no explanation:
+{"video_id":"snake_case","title":"Title","concept":"One line","duration_total":"${dur} detik","aspect_ratio":"${ratio}","platform":"${plat}","genre":"${selectedGenres.join(', ')}","visual_style":"Aesthetic description","difficulty":"Mudah","scenes":[{"scene_num":1,"timing":"0:00-0:03","visual":"Specific visual","camera":"Angle+movement","sfx":"Sound effects","narration":${narr === 'None' ? 'null' : '"Text in ' + narr + '"'},"micro_action":"Subtle action"}],"tips":["Tip 1","Tip 2","Tip 3"],"generate_with":["manim","ffmpeg","edge-tts"]}`;
+
+  try {
+    const raw = await callAPI(apiKey, model, prompt);
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const start = clean.indexOf('{');
+    const end = clean.lastIndexOf('}');
+    currentJSON = JSON.parse(start >= 0 ? clean.slice(start, end + 1) : clean);
+    document.getElementById('jp').textContent = JSON.stringify(currentJSON, null, 2);
+    render(currentJSON);
+    setStatus('');
+    addToHistory(currentJSON);
+    showToast('✅ Storyboard generated!');
+  } catch (err) {
+    setStatus('');
+    setError(err.message || 'Gagal generate.');
+    // Restore scenes view from skeleton
+    document.getElementById('scenesView').innerHTML = '';
+  } finally {
+    document.getElementById('gb').disabled = false;
+    document.getElementById('gb').textContent = '▶ Generate Storyboard';
+  }
+}
+
+// ─── SAVE API KEY ON INPUT CHANGE ─────────────────────────────
+document.getElementById('apikey').addEventListener('change', () => {
+  const key = document.getElementById('apikey').value.trim();
+  if (key) saveApiKey(currentProvider, key);
+});
+
+// ─── SAVE PREFS ON SELECT CHANGE ──────────────────────────────
+['dur', 'ratio', 'plat', 'narr', 'model'].forEach(id => {
+  document.getElementById(id).addEventListener('change', savePreferences);
+});
+
+// ─── INIT ─────────────────────────────────────────────────────
+(async function init() {
+  // Detect backend
+  await detectBackend();
+
+  // Load preferences
+  const prefs = loadPreferences();
+  if (prefs) {
+    // Restore provider
+    if (prefs.provider && PROVIDERS[prefs.provider]) {
+      setProvider(prefs.provider);
+    }
+    // Restore model
+    if (prefs.model) {
+      const modelSelect = document.getElementById('model');
+      for (const opt of modelSelect.options) {
+        if (opt.value === prefs.model) { modelSelect.value = prefs.model; break; }
+      }
+    }
+    // Restore form values
+    if (prefs.dur) document.getElementById('dur').value = prefs.dur;
+    if (prefs.ratio) document.getElementById('ratio').value = prefs.ratio;
+    if (prefs.plat) document.getElementById('plat').value = prefs.plat;
+    if (prefs.narr) document.getElementById('narr').value = prefs.narr;
+    // Restore genres
+    if (prefs.genres && prefs.genres.length > 0) {
+      selectedGenres = prefs.genres;
+      document.querySelectorAll('.chip').forEach(chip => {
+        chip.classList.toggle('on', selectedGenres.includes(chip.dataset.v));
+      });
+    }
+  } else {
+    setProvider('anthropic');
+  }
+
+  // Render history
+  renderHistory();
+
+  console.log('[StoryBOARD] ✅ Initialized — v3.2');
+})();
+</script>
+</body>
+</html>
