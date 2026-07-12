@@ -12,9 +12,17 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+const googleTTS = require('google-tts-api');
 
 const app = express();
 const PORT = process.env.PORT || 3456;
+
+// Create temp directory for saving TTS files
+const tempDir = path.join(__dirname, 'temp');
+if (!fs.existsSync(tempDir)) {
+  fs.mkdirSync(tempDir, { recursive: true });
+}
 
 // ─── MIDDLEWARE ────────────────────────────────────────────────
 app.use(cors());
@@ -167,7 +175,7 @@ app.post('/api/llm/generate', async (req, res) => {
 
 // ─── ROUTE: POST /api/image/generate ──────────────────────────
 app.post('/api/image/generate', async (req, res) => {
-  const { provider, model, prompt, size, apiKey } = req.body;
+  const { provider, model, prompt, size, apiKey, seed } = req.body;
 
   if (!provider || !model || !prompt) {
     return res.status(400).json({
@@ -177,7 +185,7 @@ app.post('/api/image/generate', async (req, res) => {
   }
 
   try {
-    console.log(`[Image] ${provider}/${model} → size: ${size || 'default'}...`);
+    console.log(`[Image] ${provider}/${model} → size: ${size || 'default'}, seed: ${seed || 'none'}...`);
     const startTime = Date.now();
 
     // 1. OpenAI DALL-E
@@ -211,17 +219,20 @@ app.post('/api/image/generate', async (req, res) => {
     // 2. Stability AI
     if (provider === 'stability') {
       // For Stability Core, SD3, etc.
+      const bodyObj = {
+        prompt,
+        output_format: 'jpeg',
+        aspect_ratio: size === '768x1344' ? '9:16' : (size === '1344x768' ? '16:9' : '1:1')
+      };
+      if (seed) bodyObj.seed = seed;
+
       const response = await fetch(`https://api.stability.ai/v2beta/stable-image/generate/${model === 'core' ? 'core' : 'sd3'}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          prompt,
-          output_format: 'jpeg',
-          aspect_ratio: size === '768x1344' ? '9:16' : (size === '1344x768' ? '16:9' : '1:1')
-        })
+        body: JSON.stringify(bodyObj)
       });
 
       if (!response.ok) {
@@ -230,7 +241,6 @@ app.post('/api/image/generate', async (req, res) => {
       }
 
       const data = await response.json();
-      // Stability returns base64 image
       const base64 = data.image;
       if (!base64) throw new Error('No base64 image data returned from Stability');
       const imageUrl = `data:image/jpeg;base64,${base64}`;
@@ -240,21 +250,24 @@ app.post('/api/image/generate', async (req, res) => {
 
     // 3. Together AI (Flux)
     if (provider === 'together') {
+      const bodyObj = {
+        model: model || 'black-forest-labs/FLUX.1-schnell-Free',
+        prompt,
+        width: size === '768x1344' ? 768 : (size === '1344x768' ? 1024 : 1024),
+        height: size === '768x1344' ? 1024 : (size === '1344x768' ? 576 : 1024),
+        steps: 4,
+        n: 1,
+        response_format: 'b64_json'
+      };
+      if (seed) bodyObj.seed = seed;
+
       const response = await fetch('https://api.together.xyz/v1/images/generations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
-        body: JSON.stringify({
-          model: model || 'black-forest-labs/FLUX.1-schnell-Free',
-          prompt,
-          width: size === '768x1344' ? 768 : (size === '1344x768' ? 1024 : 1024), // standard width bounds
-          height: size === '768x1344' ? 1024 : (size === '1344x768' ? 576 : 1024),
-          steps: 4,
-          n: 1,
-          response_format: 'b64_json'
-        })
+        body: JSON.stringify(bodyObj)
       });
 
       if (!response.ok) {
@@ -270,11 +283,12 @@ app.post('/api/image/generate', async (req, res) => {
       return res.json({ success: true, imageUrl, elapsed_ms: Date.now() - startTime });
     }
 
-    // Default Fallback / Pollinations (should normally be handled direct, but proxy if requested)
+    // Default Fallback / Pollinations
     if (provider === 'pollinations') {
       const encoded = encodeURIComponent(prompt);
       const [w, h] = size.split('x');
-      const imageUrl = `https://image.pollinations.ai/prompt/${encoded}?width=${w}&height=${h}&model=${model}&nologo=true`;
+      let imageUrl = `https://image.pollinations.ai/prompt/${encoded}?width=${w}&height=${h}&model=${model}&nologo=true`;
+      if (seed) imageUrl += `&seed=${seed}`;
       return res.json({ success: true, imageUrl, elapsed_ms: Date.now() - startTime });
     }
 
@@ -289,6 +303,69 @@ app.post('/api/image/generate', async (req, res) => {
   }
 });
 
+// ─── ROUTE: POST /api/tts/generate ────────────────────────────
+app.post('/api/tts/generate', async (req, res) => {
+  const { text, lang } = req.body;
+
+  if (!text) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required field: text'
+    });
+  }
+
+  const cleanText = text.trim();
+  const language = lang || 'id'; // default to indonesian
+
+  try {
+    // Hash text + lang to avoid recreating duplicate audio files
+    const crypto = require('crypto');
+    const textHash = crypto.createHash('md5').update(`${cleanText}_${language}`).digest('hex');
+    const fileName = `tts_${textHash}.mp3`;
+    const filePath = path.join(tempDir, fileName);
+
+    console.log(`[TTS] Request: "${cleanText.substring(0, 30)}..." [lang: ${language}]`);
+
+    // Check cache
+    if (fs.existsSync(filePath)) {
+      console.log(`[TTS] ✅ Cache Hit: ${fileName}`);
+      return res.json({
+        success: true,
+        audioUrl: `/temp/${fileName}`
+      });
+    }
+
+    // Get TTS URL
+    const url = googleTTS.getAudioUrl(cleanText, {
+      lang: language === 'English' ? 'en' : 'id',
+      slow: false,
+      host: 'https://translate.google.com'
+    });
+
+    console.log(`[TTS] Fetching from: ${url}`);
+    const audioRes = await fetch(url);
+    if (!audioRes.ok) {
+      throw new Error(`Google TTS request failed with status: ${audioRes.status}`);
+    }
+
+    const buffer = Buffer.from(await audioRes.arrayBuffer());
+    fs.writeFileSync(filePath, buffer);
+    console.log(`[TTS] ✅ Saved: ${fileName}`);
+
+    res.json({
+      success: true,
+      audioUrl: `/temp/${fileName}`
+    });
+
+  } catch (err) {
+    console.error(`[TTS] ❌ Exception:`, err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to generate speech narration'
+    });
+  }
+});
+
 // ─── ROUTE: Health check ──────────────────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({
@@ -298,6 +375,9 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Serve temp audio files statically
+app.use('/temp', express.static(tempDir));
 
 // ─── STATIC FILES (after API routes) ──────────────────────────
 app.use(express.static(path.join(__dirname, '..')));

@@ -4,8 +4,8 @@
 | Field | Detail |
 |---|---|
 | **Last Updated** | 2026-07-12 |
-| **Current Phase** | Phase 3 — Visual Generation |
-| **Overall Progress** | ██████░░░░ 60% |
+| **Current Phase** | Phase 4 — Audio & TTS |
+| **Overall Progress** | ███████░░░ 66% |
 
 ---
 
@@ -15,15 +15,15 @@
 |---|---|---|---|---|
 | Phase 1 — Storyboard Generator | ✅ Done | ██████████ 100% | 11/11 | 11 |
 | Phase 2 — Bug Fix & UX Polish | ✅ Done | ██████████ 100% | 18/18 | 18 |
-| Phase 3 — Visual Generation | 🔄 In Progress | ████░░░░░░ 37% | 3/8 | 8 |
-| Phase 4 — Audio & TTS | 🔴 Not Started | ░░░░░░░░░░ 0% | 0/8 | 8 |
+| Phase 3 — Visual Generation | 🔄 In Progress | ██████.░░░ 62% | 5/8 | 8 |
+| Phase 4 — Audio & TTS | 🔄 In Progress | █████░░░░░ 50% | 4/8 | 8 |
 | Phase 5 — Video Assembly | 🔴 Not Started | ░░░░░░░░░░ 0% | 0/12 | 12 |
 
-**Total Tasks**: 32/57 completed (56%)
+**Total Tasks**: 38/57 completed (66%)
 
 ---
 
-## Current Sprint: Phase 3
+## Current Sprint: Phase 3 & 4
 
 ### 2.4 — Code Refactor ✅
 - [x] Extract CSS to separate file (`frontend/css/style.css`)
@@ -33,21 +33,21 @@
 - [x] Image provider integration (Pollinations, DALL-E, Stability, Together AI)
 - [x] Backend route `/api/image/generate`
 - [x] Image preview container inside scene card
-- [ ] Image regeneration button per scene
-- [ ] Style presets (realistic, anime, 3D, miniature)
-- [ ] Visual consistency / style lock across scenes
+- [x] Image regeneration button per scene
+- [x] Style presets (realistic, anime, 3D, miniature, vector, cyberpunk)
+- [x] Visual consistency / style lock across scenes (using consistent seed mapping)
 - [ ] Image gallery & selection
 - [ ] Custom image upload per scene
 
 ---
 
-## Future Sprint: Phase 4 & 5
+## Future Sprint: Phase 5
 
-### Phase 4 — Audio & TTS Pipeline 🔴
-- [ ] Edge-TTS integration
-- [ ] Backend route `/api/tts/generate`
-- [ ] Voice selection UI
-- [ ] Audio preview per scene
+### Phase 4 — Audio & TTS Pipeline ✅
+- [x] Edge-TTS / Google-TTS integration
+- [x] Backend route `/api/tts/generate`
+- [x] Voice selection UI (mapped through narration language selection)
+- [x] Audio preview per scene (speakScene buttons)
 - [ ] ElevenLabs integration (premium option)
 - [ ] Background music selection
 - [ ] SFX library integration
@@ -114,6 +114,8 @@
 
 | Date | Activity | Phase |
 |---|---|---|
+| 2026-07-12 | ✅ Phase 4.1-4.4 completed — integrated Google TTS audio generation proxy route `/api/tts/generate` with client side audio playing preview buttons | Phase 4 |
+| 2026-07-12 | ✅ Phase 3.4-3.6 completed — added Image Style Presets (cinematic, anime, cyberpunk, flat vector, miniature, etc.) and Seed Style Lock features for visual consistency | Phase 3 |
 | 2026-07-12 | ✅ Phase 2.4 Refactor completed — project structure is clean and modular | Phase 2 |
 | 2026-07-12 | ✅ Phase 3.1, 3.2, 3.3 initiated — frontend/backend image generation support added | Phase 3 |
 | 2026-07-12 | ✅ Phase 2.3 fully completed — added PDF export styling and window.print(), implemented keyboard shortcuts | Phase 2 |

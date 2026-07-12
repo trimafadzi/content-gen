@@ -30,6 +30,17 @@ let currentJSON     = null;
 let useBackend      = false;
 // Per-scene image cache: { sceneIdx: dataURL }
 let sceneImages     = {};
+let styleLockSeed   = null;
+
+// Style presets prompt modifiers
+const PRESET_MODIFIERS = {
+  cinematic: "cinematic photo, highly detailed, dramatic lighting, shot on 35mm lens, 8k resolution",
+  anime: "anime style, vibrant colors, detailed digital illustration, hand-drawn aesthetic, high quality studio ghibli style",
+  "3d-render": "3d character render, pixar disney style, clay model feel, cute, soft lighting, vibrant pastel colors, octanerender, 8k",
+  miniature: "tilt-shift photography, miniature toy world, macro lens, small dioramas, tiny figures, shallow depth of field",
+  cyberpunk: "cyberpunk neon aesthetic, glowing neon lights, futuristic city streets, dark moody atmosphere, highly stylized",
+  vector: "minimalist flat vector illustration, clean lines, simple shapes, modern tech illustration, behance style"
+};
 
 // ─── STORAGE KEYS ─────────────────────────────────────────────
 const STORAGE = {
@@ -189,19 +200,33 @@ function getImageProviderKey() {
 async function generateSceneImage(sceneIdx, visualPrompt, styleHint) {
   const imgProv = document.getElementById('imgProvider')?.value || 'pollinations';
   const imgModel = document.getElementById('imgModel')?.value || 'flux';
+  const preset = document.getElementById('imgPreset')?.value || '';
+  const styleLock = document.getElementById('styleLock')?.checked || false;
   const ratio = currentJSON?.aspect_ratio || '16:9';
 
   // Build size from ratio
   const sizeMap = { '9:16': '768x1344', '16:9': '1344x768', '1:1': '1024x1024' };
   const size = sizeMap[ratio] || '1024x576';
 
-  const fullPrompt = `${visualPrompt}. Visual style: ${styleHint || 'cinematic, high quality'}. Shot for ${ratio} social media video.`;
+  // Apply style preset modifier
+  const presetModifier = PRESET_MODIFIERS[preset] || '';
+  let finalStyleHint = styleHint || 'cinematic, high quality';
+  if (presetModifier) {
+    finalStyleHint = `${presetModifier}, ${finalStyleHint}`;
+  }
+
+  const fullPrompt = `${visualPrompt}. Visual style: ${finalStyleHint}. Shot for ${ratio} social media video.`;
+
+  // Get style lock seed
+  if (styleLock && !styleLockSeed) {
+    styleLockSeed = Math.floor(Math.random() * 999999);
+  }
+  const seed = styleLock ? styleLockSeed : Math.floor(Math.random() * 999999);
 
   if (imgProv === 'pollinations') {
-    // Free, no API key needed
     const encoded = encodeURIComponent(fullPrompt);
     const [w, h] = size.split('x');
-    const url = `https://image.pollinations.ai/prompt/${encoded}?width=${w}&height=${h}&model=${imgModel}&nologo=true&seed=${Date.now()}`;
+    const url = `https://image.pollinations.ai/prompt/${encoded}?width=${w}&height=${h}&model=${imgModel}&nologo=true&seed=${seed}`;
     return { url, type: 'url' };
   }
 
@@ -213,7 +238,7 @@ async function generateSceneImage(sceneIdx, visualPrompt, styleHint) {
     const response = await fetch('/api/image/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider: imgProv, model: imgModel, prompt: fullPrompt, size, apiKey })
+      body: JSON.stringify({ provider: imgProv, model: imgModel, prompt: fullPrompt, size, apiKey, seed })
     });
     const result = await response.json();
     if (!result.success) throw new Error(result.error || 'Image generation failed');
@@ -297,6 +322,53 @@ function updateImgProviderUI() {
   saveToStorage(STORAGE.IMG_PREFS, { provider: prov, model: modelSel?.value || 'flux' });
 }
 
+// ─── PHASE 4: TEXT TO SPEECH (TTS) ────────────────────────────
+async function speakScene(sceneIdx) {
+  if (!currentJSON || !currentJSON.scenes[sceneIdx]) return;
+  const scene = currentJSON.scenes[sceneIdx];
+  const text = scene.narration;
+  if (!text || text === 'null') return;
+
+  const btn = document.querySelector(`.scene-card[data-idx="${sceneIdx}"] .tts-btn`);
+  if (!btn) return;
+
+  if (btn.classList.contains('playing')) return;
+
+  btn.classList.add('playing');
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+
+  try {
+    const lang = document.getElementById('narr')?.value || 'Indonesian';
+    const response = await fetch('/api/tts/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, lang })
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'TTS generation failed');
+
+    // Save audioUrl back to storyboard state (crucial for Phase 5 video compilation)
+    scene.audioUrl = result.audioUrl;
+    document.getElementById('jp').textContent = JSON.stringify(currentJSON, null, 2);
+
+    const audio = new Audio(result.audioUrl);
+    audio.onended = () => {
+      btn.classList.remove('playing');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>`;
+    };
+    audio.onerror = () => {
+      btn.classList.remove('playing');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>`;
+      showToast('❌ Audio playback failed');
+    };
+    await audio.play();
+  } catch (err) {
+    btn.classList.remove('playing');
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>`;
+    showToast(`❌ TTS: ${err.message}`);
+  }
+}
+
 // ─── RENDER STORYBOARD ────────────────────────────────────────
 function render(data) {
   sceneImages = {}; // reset images on re-render
@@ -314,6 +386,10 @@ function render(data) {
   const imgProvOptions = Object.entries(IMAGE_PROVIDERS)
     .map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
   const savedImgPrefs = loadFromStorage(STORAGE.IMG_PREFS, { provider: 'pollinations', model: 'flux' });
+  
+  // Reset style lock seed whenever we render a fresh storyboard
+  styleLockSeed = null;
+
   document.getElementById('imgGenBar').innerHTML = `
     <span class="img-gen-bar-label">🎨 Image Gen:</span>
     <select id="imgProvider" onchange="updateImgProviderUI()">
@@ -326,6 +402,19 @@ function render(data) {
         `<option value="${m}" ${m === savedImgPrefs.model ? 'selected' : ''}>${m}</option>`
       ).join('') || ''}
     </select>
+    <select id="imgPreset" style="flex: 0.8; min-width: 120px;">
+      <option value="">No Preset (Follow Prompt)</option>
+      <option value="cinematic">Cinematic Photo</option>
+      <option value="anime">Anime Illustration</option>
+      <option value="3d-render">3D Pixar Character</option>
+      <option value="miniature">Miniature Toy World</option>
+      <option value="cyberpunk">Cyberpunk Neon</option>
+      <option value="vector">Flat Vector Art</option>
+    </select>
+    <label style="display:flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; text-transform:uppercase; cursor:pointer; user-select:none;">
+      <input type="checkbox" id="styleLock" checked style="width:auto; box-shadow:none; cursor:pointer; margin:0;"/>
+      Style Lock
+    </label>
     <button class="gen-all-btn" id="genAllImgBtn" onclick="genAllImages()">✦ Generate All Images</button>
     <span class="img-provider-note" id="imgProviderNote" style="display:none"></span>
   `;
@@ -352,7 +441,13 @@ function render(data) {
         ${scene.camera    ? `<div class="sc-lbl">Camera</div><div class="sc-val" contenteditable="true" data-field="camera" data-idx="${idx}">${scene.camera}</div>` : ''}
         ${scene.sfx       ? `<div class="sc-lbl">SFX</div><div class="sc-val" contenteditable="true" data-field="sfx" data-idx="${idx}">${scene.sfx}</div>` : ''}
         ${scene.narration && scene.narration !== 'null'
-          ? `<div class="sc-lbl">Narasi</div><div class="sc-val narr" contenteditable="true" data-field="narration" data-idx="${idx}">"${scene.narration}"</div>`
+          ? `<div class="sc-lbl">Narasi</div>
+             <div class="sc-narr-wrap">
+               <button class="tts-btn" onclick="speakScene(${idx})" title="Listen Narration">
+                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+               </button>
+               <div class="sc-val narr" contenteditable="true" data-field="narration" data-idx="${idx}">"${scene.narration}"</div>
+             </div>`
           : ''}
         ${scene.micro_action ? `<div class="sc-lbl">Micro Action</div><div class="sc-val" contenteditable="true" data-field="micro_action" data-idx="${idx}">${scene.micro_action}</div>` : ''}
         <div class="sc-edit-hint">✏️ Click to edit</div>

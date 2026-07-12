@@ -7,11 +7,16 @@
     "start": "node server.js",
     "dev": "node server.js"
   },
-  "keywords": ["storyboard", "ai", "proxy"],
+  "keywords": [
+    "storyboard",
+    "ai",
+    "proxy"
+  ],
   "author": "Content-Gen",
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.6",
+    "edge-tts": "^1.0.1",
     "express": "^5.2.1"
   }
 }

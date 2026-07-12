@@ -206,3 +206,47 @@ body{background:var(--white);font-family:'Space Grotesk',sans-serif;color:var(--
   .scene-card{border-right:1px solid black!important;border-bottom:1px solid black!important;page-break-inside:avoid}
   .sc-image-wrap{border:1px solid #ccc!important}
 }
+
+/* ── PHASE 4: TTS VOICE PREVIEW BUTTON ───────────────────────── */
+.sc-narr-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.sc-narr-wrap .sc-val {
+  flex: 1;
+}
+.tts-btn {
+  background: var(--white);
+  border: 1.5px solid var(--black);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--black);
+  transition: all .1s;
+  flex-shrink: 0;
+}
+.tts-btn:hover {
+  background: var(--yellow);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--black);
+}
+.tts-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--black);
+}
+.tts-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+.tts-btn.playing {
+  background: var(--black);
+  color: var(--yellow);
+}
+
