@@ -366,6 +366,254 @@ app.post('/api/tts/generate', async (req, res) => {
   }
 });
 
+// ─── HELPERS FOR VIDEO ASSEMBLY ────────────────────────────────
+const http = require('http');
+const https = require('https');
+const { exec, execSync } = require('child_process');
+
+// Helper to download external files (images)
+function downloadFile(url, dest) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(dest);
+    const client = url.startsWith('https') ? https : http;
+    client.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to download: status ${response.statusCode}`));
+        return;
+      }
+      response.pipe(file);
+      file.on('finish', () => {
+        file.close(resolve);
+      });
+    }).on('error', (err) => {
+      fs.unlink(dest, () => reject(err));
+    });
+  });
+}
+
+// Helper to get audio duration using ffprobe
+function getAudioDuration(filePath) {
+  try {
+    const cmd = `ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`;
+    const durationStr = execSync(cmd).toString().trim();
+    return parseFloat(durationStr);
+  } catch (err) {
+    console.error(`[Video] ffprobe error for ${filePath}:`, err.message);
+    return 3.5; // default fallback duration in seconds
+  }
+}
+
+// Helper to execute terminal commands
+function runCommand(cmd) {
+  return new Promise((resolve, reject) => {
+    exec(cmd, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(`Command failed: ${cmd}\nError: ${error.message}\nStderr: ${stderr}`));
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+}
+
+// Helper to wrap text for subtitles
+function wrapText(text, maxChars) {
+  const words = text.split(/\s+/);
+  let lines = [];
+  let currentLine = '';
+  for (const word of words) {
+    if ((currentLine + ' ' + word).trim().length <= maxChars) {
+      currentLine = (currentLine + ' ' + word).trim();
+    } else {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines.join('\n');
+}
+
+// ─── ROUTE: POST /api/video/assemble ──────────────────────────
+app.post('/api/video/assemble', async (req, res) => {
+  const { storyboard, images } = req.body;
+
+  if (!storyboard || !storyboard.scenes || storyboard.scenes.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing or empty storyboard data'
+    });
+  }
+
+  const videoId = `vid_${Date.now()}`;
+  console.log(`[Video] 🎬 Initiating assembly for video: ${videoId}`);
+
+  const aspect = storyboard.aspect_ratio || '9:16';
+  const isVertical = aspect === '9:16';
+  const width = isVertical ? 720 : 1280;
+  const height = isVertical ? 1280 : 720;
+  const subtitleMaxChars = isVertical ? 26 : 52;
+  const subtitleFontSize = isVertical ? 30 : 26;
+  const subtitleYPos = isVertical ? 'h-240' : 'h-120';
+
+  const scenes = storyboard.scenes;
+  const clipPaths = [];
+  const tempFiles = [];
+
+  try {
+    for (let i = 0; i < scenes.length; i++) {
+      const scene = scenes[i];
+      const sceneNum = scene.scene_num || (i + 1);
+
+      console.log(`[Video] Processing Scene ${sceneNum}/${scenes.length}...`);
+
+      // 1. Get scene image (Download locally if it's an external URL)
+      const imageUrl = images?.[i] || scene.visual_url || '';
+      if (!imageUrl) {
+        throw new Error(`Scene ${sceneNum} is missing an image. Generate images first!`);
+      }
+
+      const localImgPath = path.join(tempDir, `${videoId}_scene_${i}.jpg`);
+      tempFiles.push(localImgPath);
+
+      if (imageUrl.startsWith('http')) {
+        console.log(`[Video] Downloading image for scene ${sceneNum}: ${imageUrl}`);
+        await downloadFile(imageUrl, localImgPath);
+      } else if (imageUrl.startsWith('data:image')) {
+        // Base64 image fallback (e.g. from Stability)
+        const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, '');
+        fs.writeFileSync(localImgPath, base64Data, { encoding: 'base64' });
+      } else {
+        // Local path fallback
+        const sourcePath = path.join(__dirname, '..', imageUrl.replace(/^\//, ''));
+        if (fs.existsSync(sourcePath)) {
+          fs.copyFileSync(sourcePath, localImgPath);
+        } else {
+          throw new Error(`Scene ${sceneNum} image path "${imageUrl}" not found.`);
+        }
+      }
+
+      // 2. Get scene narration audio
+      let localAudioPath = null;
+      let duration = 3.5; // default fallback
+
+      const clientAudioUrl = scene.audioUrl || '';
+      if (clientAudioUrl) {
+        // Cached URL like '/temp/tts_xxxx.mp3' -> local path 'backend/temp/tts_xxxx.mp3'
+        const resolvedAudioPath = path.join(tempDir, path.basename(clientAudioUrl));
+        if (fs.existsSync(resolvedAudioPath)) {
+          localAudioPath = resolvedAudioPath;
+          duration = getAudioDuration(localAudioPath);
+          console.log(`[Video] Scene ${sceneNum}: Found cached audio. Duration: ${duration}s`);
+        }
+      }
+
+      // If narration exists but wasn't generated/cached, generate it now!
+      if (!localAudioPath && scene.narration && scene.narration !== 'null' && scene.narration.trim() !== '') {
+        console.log(`[Video] Scene ${sceneNum}: Generating missing TTS for: "${scene.narration.substring(0, 20)}..."`);
+        const cleanText = scene.narration.trim();
+        const ttsUrl = googleTTS.getAudioUrl(cleanText, {
+          lang: storyboard.platform === 'YouTube' ? 'en' : 'id',
+          slow: false,
+          host: 'https://translate.google.com'
+        });
+        const generatedAudioPath = path.join(tempDir, `tts_fallback_${videoId}_${i}.mp3`);
+        tempFiles.push(generatedAudioPath);
+
+        const audioRes = await fetch(ttsUrl);
+        if (audioRes.ok) {
+          fs.writeFileSync(generatedAudioPath, Buffer.from(await audioRes.arrayBuffer()));
+          localAudioPath = generatedAudioPath;
+          duration = getAudioDuration(localAudioPath);
+          console.log(`[Video] Scene ${sceneNum}: Generated fallback TTS. Duration: ${duration}s`);
+        }
+      }
+
+      // 3. Write subtitle file (Text overlay)
+      let localSubPath = null;
+      if (scene.narration && scene.narration !== 'null' && scene.narration.trim() !== '') {
+        const wrappedText = wrapText(scene.narration.trim().replace(/^"|"$/g, ''), subtitleMaxChars);
+        const subFileName = `${videoId}_sub_${i}.txt`;
+        localSubPath = path.join(tempDir, subFileName);
+        tempFiles.push(localSubPath);
+        fs.writeFileSync(localSubPath, wrappedText);
+      }
+
+      // 4. Render video clip for this scene
+      const clipPath = path.join(tempDir, `${videoId}_clip_${i}.mp4`);
+      clipPaths.push(clipPath);
+      tempFiles.push(clipPath);
+
+      // FFmpeg options
+      // scale aspect ratio and crop center to fit canvas exactly
+      const videoFilter = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`;
+      
+      // Subtitle burn-in filter (DejaVuSans Bold, yellow comic fill, bold black outline)
+      const drawTextFilter = localSubPath 
+        ? `,drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:textfile='${localSubPath.replace(/\\/g, '/')}'` +
+          `:fontcolor=0xFFE500:fontsize=${subtitleFontSize}:borderw=4:bordercolor=0x0A0A0A:x=(w-text_w)/2:y=${subtitleYPos}`
+        : '';
+
+      let ffmpegCmd = '';
+      if (localAudioPath) {
+        ffmpegCmd = `ffmpeg -y -loop 1 -i "${localImgPath}" -i "${localAudioPath}" ` +
+                    `-vf "${videoFilter}${drawTextFilter}" -c:v libx264 -t ${duration} ` +
+                    `-pix_fmt yuv420p -c:a aac -b:a 192k -shortest "${clipPath}"`;
+      } else {
+        // Fallback to silent clip if no narration exists
+        ffmpegCmd = `ffmpeg -y -loop 1 -i "${localImgPath}" -f lavfi -i anullsrc=r=44100:cl=mono ` +
+                    `-vf "${videoFilter}${drawTextFilter}" -c:v libx264 -t ${duration} ` +
+                    `-pix_fmt yuv420p -c:a aac -shortest "${clipPath}"`;
+      }
+
+      console.log(`[Video] Rendering Scene ${sceneNum}...`);
+      await runCommand(ffmpegCmd);
+      console.log(`[Video] Scene ${sceneNum} rendered: ${path.basename(clipPath)}`);
+    }
+
+    // 5. Concatenate all clips
+    const listFilePath = path.join(tempDir, `${videoId}_list.txt`);
+    tempFiles.push(listFilePath);
+
+    const listContent = clipPaths.map(p => `file '${p.replace(/'/g, "'\\''")}'`).join('\n');
+    fs.writeFileSync(listFilePath, listContent);
+
+    const finalVideoName = `${videoId}_final.mp4`;
+    const finalVideoPath = path.join(tempDir, finalVideoName);
+
+    const concatCmd = `ffmpeg -y -f concat -safe 0 -i "${listFilePath}" -c copy "${finalVideoPath}"`;
+    console.log(`[Video] Concatenating clips into final output: ${finalVideoName}`);
+    await runCommand(concatCmd);
+
+    console.log(`[Video] 🏁 Video assembly completed successfully: ${finalVideoName}`);
+
+    // Clean up temporary files except the final video
+    for (const f of tempFiles) {
+      if (fs.existsSync(f) && f !== finalVideoPath) {
+        try { fs.unlinkSync(f); } catch (e) {}
+      }
+    }
+
+    res.json({
+      success: true,
+      videoUrl: `/temp/${finalVideoName}`,
+      duration_total: clipPaths.length * 3.5 // rough approximate or track it precisely
+    });
+
+  } catch (err) {
+    console.error(`[Video] ❌ Assembly failed:`, err.message);
+    // Cleanup any created temp files on failure
+    for (const f of tempFiles) {
+      if (fs.existsSync(f)) {
+        try { fs.unlinkSync(f); } catch (e) {}
+      }
+    }
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to assemble video'
+    });
+  }
+});
+
 // ─── ROUTE: Health check ──────────────────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({

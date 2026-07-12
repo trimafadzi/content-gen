@@ -10,10 +10,21 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 ## [Unreleased]
 
 ### Planned
-- Backend video assembly pipeline (FFmpeg)
-- Final video compile endpoint `/api/video/assemble`
-- Custom transition effects and subtitles overlay burn-in
-- Interactive video player preview
+- Custom transition effects between scenes (fade, blur, cross-zoom)
+- Multi-track background music mixer
+- Premium ElevenLabs integration for high quality voice models
+
+---
+
+## [3.5.0] — 2026-07-12
+
+### Added
+- ✨ FFmpeg Video Assembler Pipeline: server-side image-to-video compilation.
+- ✨ Post endpoint `/api/video/assemble` to process scene visual frames and synchronize narration audio tracks.
+- ✨ Comic-inspired Neobrutalism subtitles burned directly into video frames (DejaVuSans-Bold, yellow text `#FFE500`, thick black outline `borderw=4`).
+- ✨ Center-crop scale logic (`force_original_aspect_ratio=increase,crop=720:1280`) ensuring vertical/horizontal clips fit screen canvas seamlessly without black bars.
+- ✨ Interactive client-side Video Preview Player (styled neobrutalism widget) with auto-resizing aspect ratio bounds.
+- ✨ Integrated direct MP4 video downloads.
 
 ---
 

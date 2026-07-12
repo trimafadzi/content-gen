@@ -369,6 +369,74 @@ async function speakScene(sceneIdx) {
   }
 }
 
+// ─── PHASE 5: VIDEO ASSEMBLY ──────────────────────────────────
+async function assembleVideo() {
+  if (!currentJSON) return;
+  
+  // Validate that all images are generated
+  const scenesCount = currentJSON.scenes.length;
+  const generatedCount = Object.keys(sceneImages).length;
+  if (generatedCount < scenesCount) {
+    alert(`⚠️ Silakan generate gambar untuk semua scene terlebih dahulu!\nBaru ${generatedCount}/${scenesCount} gambar yang siap.`);
+    return;
+  }
+
+  if (!useBackend) {
+    alert('⚠️ Backend server tidak aktif. Silakan jalankan backend server Node.js untuk menggunakan fitur FFmpeg Video Assembly.');
+    return;
+  }
+
+  const btn = document.getElementById('assembleVideoBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Assembling...';
+  setStatus('🎬 FFmpeg sedang merakit klip video, menggabungkan audio, dan menempelkan subtitle...');
+
+  try {
+    const response = await fetch('/api/video/assemble', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        storyboard: currentJSON,
+        images: Object.values(sceneImages)
+      })
+    });
+    
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'Video assembly failed');
+
+    // Display the video player
+    document.getElementById('videoPlayerWrap').style.display = 'block';
+    
+    const aspect = currentJSON.aspect_ratio || '9:16';
+    const isVertical = aspect === '9:16';
+    
+    const player = document.getElementById('videoPlayer');
+    player.src = result.videoUrl;
+    player.style.aspectRatio = isVertical ? '9/16' : '16/9';
+    player.style.width = isVertical ? '270px' : '480px';
+    player.load();
+    
+    document.getElementById('videoDownloadLink').href = result.videoUrl;
+    
+    // Auto-scroll to player
+    document.getElementById('videoPlayerWrap').scrollIntoView({ behavior: 'smooth' });
+    showToast('🎬 Video berhasil dirakit!');
+  } catch (err) {
+    alert(`❌ Gagal merakit video: ${err.message}`);
+  } finally {
+    setStatus('');
+    btn.disabled = false;
+    btn.textContent = '🎬 Assemble Video (MP4)';
+  }
+}
+
+function closeVideoPlayer() {
+  const player = document.getElementById('videoPlayer');
+  player.pause();
+  player.src = '';
+  document.getElementById('videoPlayerWrap').style.display = 'none';
+}
+
 // ─── RENDER STORYBOARD ────────────────────────────────────────
 function render(data) {
   sceneImages = {}; // reset images on re-render
@@ -416,6 +484,7 @@ function render(data) {
       Style Lock
     </label>
     <button class="gen-all-btn" id="genAllImgBtn" onclick="genAllImages()">✦ Generate All Images</button>
+    <button class="gen-all-btn" id="assembleVideoBtn" onclick="assembleVideo()" style="background: var(--red); color: var(--white); margin-left: 8px;">🎬 Assemble Video (MP4)</button>
     <span class="img-provider-note" id="imgProviderNote" style="display:none"></span>
   `;
 
