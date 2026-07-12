@@ -16,6 +16,13 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.5.1] — 2026-07-12
+
+### Fixed
+- 🐛 Resilient JSON parsing in frontend (`safeParseJSON`): implemented robust regex-based JSON repair logic to automatically handle common LLM output syntax errors such as missing commas between scene objects/properties, trailing commas, and unescaped control characters (newlines, tabs, backslashes) inside string values.
+
+---
+
 ## [3.5.0] — 2026-07-12
 
 ### Added

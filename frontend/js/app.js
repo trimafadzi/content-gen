@@ -51,6 +51,93 @@ const STORAGE = {
   IMG_PREFS:  'sbgen_img_prefs'
 };
 
+// ─── JSON REPAIR HELPERS ──────────────────────────────────────
+function escapeControlCharsInStrings(jsonStr) {
+  let inString = false;
+  let result = '';
+  for (let i = 0; i < jsonStr.length; i++) {
+    const char = jsonStr[i];
+    if (char === '"' && (i === 0 || jsonStr[i - 1] !== '\\')) {
+      inString = !inString;
+      result += char;
+    } else if (inString) {
+      if (char === '\\') {
+        const nextChar = jsonStr[i + 1];
+        if (['"', '\\', '/', 'b', 'f', 'n', 'r', 't'].includes(nextChar)) {
+          result += char;
+        } else if (nextChar === 'u' && /^[0-9a-fA-F]{4}$/.test(jsonStr.slice(i + 2, i + 6))) {
+          result += char;
+        } else {
+          result += '\\\\';
+        }
+      } else if (char === '\n') {
+        result += '\\n';
+      } else if (char === '\r') {
+        result += '\\r';
+      } else if (char === '\t') {
+        result += '\\t';
+      } else {
+        result += char;
+      }
+    } else {
+      result += char;
+    }
+  }
+  return result;
+}
+
+function repairJSON(str) {
+  let clean = str.trim();
+  
+  // Extract main JSON block
+  const firstBrace = clean.indexOf('{');
+  const firstBracket = clean.indexOf('[');
+  let startIdx = -1;
+  let endIdx = -1;
+  
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+    startIdx = firstBrace;
+    endIdx = clean.lastIndexOf('}');
+  } else if (firstBracket !== -1) {
+    startIdx = firstBracket;
+    endIdx = clean.lastIndexOf(']');
+  }
+  
+  if (startIdx !== -1 && endIdx !== -1) {
+    clean = clean.slice(startIdx, endIdx + 1);
+  }
+  
+  // Escaping control chars inside strings
+  clean = escapeControlCharsInStrings(clean);
+  
+  // 1. Fix missing commas between closing brace and opening brace: } { -> },{
+  clean = clean.replace(/}\s*({)/g, '},$1');
+  
+  // 2. Fix missing commas between properties/elements separated by newline
+  clean = clean.replace(/("|-?\d+(?:\.\d+)?|true|false|null|\]|\})\s*\n+\s*(")/g, '$1,\n$2');
+  
+  // 3. Fix trailing commas before } or ]
+  clean = clean.replace(/,\s*([}\]])/g, '$1');
+  
+  return clean;
+}
+
+function safeParseJSON(str) {
+  let clean = str.trim();
+  try {
+    const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
+    const candidate = s >= 0 ? clean.slice(s, e + 1) : clean;
+    return JSON.parse(candidate);
+  } catch (initialErr) {
+    try {
+      const repaired = repairJSON(clean);
+      return JSON.parse(repaired);
+    } catch (repairErr) {
+      throw initialErr;
+    }
+  }
+}
+
 // ─── LOCALSTORAGE HELPERS ─────────────────────────────────────
 function saveToStorage(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* quota exceeded */ }
@@ -706,8 +793,7 @@ Return ONLY valid JSON, no markdown fences, no explanation:
   try {
     const raw   = await callAPI(apiKey, model, prompt);
     const clean = raw.replace(/```json|```/g, '').trim();
-    const s     = clean.indexOf('{'), e = clean.lastIndexOf('}');
-    currentJSON = JSON.parse(s >= 0 ? clean.slice(s, e + 1) : clean);
+    currentJSON = safeParseJSON(clean);
     document.getElementById('jp').textContent = JSON.stringify(currentJSON, null, 2);
     render(currentJSON);
     setStatus('');

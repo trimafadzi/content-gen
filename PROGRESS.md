@@ -97,6 +97,7 @@ All core stages of the storyboard-to-video workflow are implemented, fully teste
 | ISS-001 | CORS blocking API calls from browser | High — storyboard gen fails | ✅ Closed | Backend proxy server implemented on port 3456 |
 | ISS-002 | Error bar styling not applied | Low — unstyled error bar | ✅ Closed | Class `err-bar` added to HTML element |
 | ISS-003 | Invalid HTML `<mono>` tag | Low — invalid W3C HTML | ✅ Closed | Replaced with `<span class="mono">` and updated CSS |
+| ISS-004 | JSON parser errors on LLM output | Medium — storyboard gen fails | ✅ Closed | Added `safeParseJSON` with robust regex repair logic to auto-correct missing commas and unescaped control characters |
 
 ---
 
@@ -104,6 +105,7 @@ All core stages of the storyboard-to-video workflow are implemented, fully teste
 
 | Date | Activity | Phase |
 |---|---|---|
+| 2026-07-12 | ✅ Robust JSON parsing — fixed parser errors on LLM outputs using client-side auto-repair | Refactor/Bugfix |
 | 2026-07-12 | ✅ Phase 5 completed — FFmpeg video assembler integration, custom neobrutalism subtitles burn-in, dynamic preview player, and MP4 downloads | Phase 5 |
 | 2026-07-12 | ✅ Phase 4.1-4.4 completed — integrated Google TTS audio generation proxy route `/api/tts/generate` with client side audio playing preview buttons | Phase 4 |
 | 2026-07-12 | ✅ Phase 3.4-3.6 completed — added Image Style Presets (cinematic, anime, cyberpunk, flat vector, miniature, etc.) and Seed Style Lock features for visual consistency | Phase 3 |
