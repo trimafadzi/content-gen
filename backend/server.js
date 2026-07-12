@@ -165,6 +165,130 @@ app.post('/api/llm/generate', async (req, res) => {
   }
 });
 
+// ─── ROUTE: POST /api/image/generate ──────────────────────────
+app.post('/api/image/generate', async (req, res) => {
+  const { provider, model, prompt, size, apiKey } = req.body;
+
+  if (!provider || !model || !prompt) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: provider, model, prompt'
+    });
+  }
+
+  try {
+    console.log(`[Image] ${provider}/${model} → size: ${size || 'default'}...`);
+    const startTime = Date.now();
+
+    // 1. OpenAI DALL-E
+    if (provider === 'openai') {
+      const response = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model || 'dall-e-3',
+          prompt,
+          n: 1,
+          size: size === '1024x1024' ? '1024x1024' : (size === '768x1344' ? '1024x1792' : '1792x1024') // DALL-E 3 specific dimensions
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `OpenAI API error: HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const imageUrl = data.data?.[0]?.url;
+      if (!imageUrl) throw new Error('No image URL returned from OpenAI');
+
+      return res.json({ success: true, imageUrl, elapsed_ms: Date.now() - startTime });
+    }
+
+    // 2. Stability AI
+    if (provider === 'stability') {
+      // For Stability Core, SD3, etc.
+      const response = await fetch(`https://api.stability.ai/v2beta/stable-image/generate/${model === 'core' ? 'core' : 'sd3'}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt,
+          output_format: 'jpeg',
+          aspect_ratio: size === '768x1344' ? '9:16' : (size === '1344x768' ? '16:9' : '1:1')
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.errors?.[0] || errorData.message || `Stability API error: HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      // Stability returns base64 image
+      const base64 = data.image;
+      if (!base64) throw new Error('No base64 image data returned from Stability');
+      const imageUrl = `data:image/jpeg;base64,${base64}`;
+
+      return res.json({ success: true, imageUrl, elapsed_ms: Date.now() - startTime });
+    }
+
+    // 3. Together AI (Flux)
+    if (provider === 'together') {
+      const response = await fetch('https://api.together.xyz/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model || 'black-forest-labs/FLUX.1-schnell-Free',
+          prompt,
+          width: size === '768x1344' ? 768 : (size === '1344x768' ? 1024 : 1024), // standard width bounds
+          height: size === '768x1344' ? 1024 : (size === '1344x768' ? 576 : 1024),
+          steps: 4,
+          n: 1,
+          response_format: 'b64_json'
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `Together AI error: HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const b64 = data.data?.[0]?.b64_json;
+      if (!b64) throw new Error('No base64 data returned from Together AI');
+      const imageUrl = `data:image/jpeg;base64,${b64}`;
+
+      return res.json({ success: true, imageUrl, elapsed_ms: Date.now() - startTime });
+    }
+
+    // Default Fallback / Pollinations (should normally be handled direct, but proxy if requested)
+    if (provider === 'pollinations') {
+      const encoded = encodeURIComponent(prompt);
+      const [w, h] = size.split('x');
+      const imageUrl = `https://image.pollinations.ai/prompt/${encoded}?width=${w}&height=${h}&model=${model}&nologo=true`;
+      return res.json({ success: true, imageUrl, elapsed_ms: Date.now() - startTime });
+    }
+
+    throw new Error(`Unsupported image provider: ${provider}`);
+
+  } catch (err) {
+    console.error(`[Image] ❌ Exception:`, err.message);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to generate image'
+    });
+  }
+});
+
 // ─── ROUTE: Health check ──────────────────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({

@@ -4,8 +4,8 @@
 | Field | Detail |
 |---|---|
 | **Last Updated** | 2026-07-12 |
-| **Current Phase** | Phase 2 — Bug Fix & UX Polish |
-| **Overall Progress** | █████░░░░░ 47% |
+| **Current Phase** | Phase 3 — Visual Generation |
+| **Overall Progress** | ██████░░░░ 60% |
 
 ---
 
@@ -14,42 +14,58 @@
 | Phase | Status | Progress | Tasks Done | Tasks Total |
 |---|---|---|---|---|
 | Phase 1 — Storyboard Generator | ✅ Done | ██████████ 100% | 11/11 | 11 |
-| Phase 2 — Bug Fix & UX Polish | 🔄 In Progress | ████████░░ 83% | 15/18 | 18 |
-| Phase 3 — Visual Generation | 🔴 Not Started | ░░░░░░░░░░ 0% | 0/8 | 8 |
+| Phase 2 — Bug Fix & UX Polish | ✅ Done | ██████████ 100% | 18/18 | 18 |
+| Phase 3 — Visual Generation | 🔄 In Progress | ████░░░░░░ 37% | 3/8 | 8 |
 | Phase 4 — Audio & TTS | 🔴 Not Started | ░░░░░░░░░░ 0% | 0/8 | 8 |
 | Phase 5 — Video Assembly | 🔴 Not Started | ░░░░░░░░░░ 0% | 0/12 | 12 |
 
-**Total Tasks**: 26/57 completed (46%)
+**Total Tasks**: 32/57 completed (56%)
 
 ---
 
-## Current Sprint: Phase 2
+## Current Sprint: Phase 3
 
-### 2.1 — Critical Bug Fixes ✅
-- [x] Fix `<mono>` invalid HTML tag → `<span class="mono">`
-- [x] Add missing `<title>` tag
-- [x] Fix `#erBar` missing `class="err-bar"`
-- [x] Add meta description & SEO tags (title, description, keywords, OG tags)
+### 2.4 — Code Refactor ✅
+- [x] Extract CSS to separate file (`frontend/css/style.css`)
+- [x] Extract JS to separate modules (`frontend/js/app.js`)
 
-### 2.2 — CORS & Backend Proxy ✅
-- [x] Setup Node.js + Express backend
-- [x] Create `/api/llm/generate` proxy endpoint
-- [x] Migrate frontend fetch calls to use proxy
-- [x] Add CORS configuration
-- [x] Error handling & retry logic
+### 3.1 — Visual Generation per Scene 🔄
+- [x] Image provider integration (Pollinations, DALL-E, Stability, Together AI)
+- [x] Backend route `/api/image/generate`
+- [x] Image preview container inside scene card
+- [ ] Image regeneration button per scene
+- [ ] Style presets (realistic, anime, 3D, miniature)
+- [ ] Visual consistency / style lock across scenes
+- [ ] Image gallery & selection
+- [ ] Custom image upload per scene
 
-### 2.3 — UX Improvements ✅
-- [x] localStorage for API key persistence
-- [x] localStorage for user preferences
-- [x] Loading skeleton animation
-- [x] Scene inline editing
-- [x] Storyboard history sidebar
-- [ ] Download storyboard as PDF
-- [ ] Keyboard shortcuts
+---
 
-### 2.4 — Code Refactor
-- [ ] Extract CSS to separate file
-- [ ] Extract JS to separate modules
+## Future Sprint: Phase 4 & 5
+
+### Phase 4 — Audio & TTS Pipeline 🔴
+- [ ] Edge-TTS integration
+- [ ] Backend route `/api/tts/generate`
+- [ ] Voice selection UI
+- [ ] Audio preview per scene
+- [ ] ElevenLabs integration (premium option)
+- [ ] Background music selection
+- [ ] SFX library integration
+- [ ] Audio waveform display
+
+### Phase 5 — Video Assembly & Export 🔴
+- [ ] FFmpeg installation & wrapper service
+- [ ] Backend route `/api/video/assemble`
+- [ ] Scene image → video frame conversion
+- [ ] Audio overlay (narration + BGM)
+- [ ] Scene transitions (fade, cut, zoom)
+- [ ] Text overlay / subtitle burn-in
+- [ ] Video preview player
+- [ ] MP4 download (720p / 1080p)
+- [ ] Progress indicator
+- [ ] Timeline drag & drop editor
+- [ ] Batch generation mode
+- [ ] Watermark / branding
 
 ---
 
@@ -68,15 +84,29 @@
 - [x] Custom provider support
 - [x] Basic responsive layout
 
+### ✅ Phase 2 — Bug Fix & UX Polish (v3.2)
+- [x] Fix `<mono>` invalid HTML tag
+- [x] Add missing `<title>` and SEO tags
+- [x] Fix `#erBar` missing `class="err-bar"`
+- [x] Express backend proxy setup
+- [x] Proxy route `/api/llm/generate`
+- [x] Migrate frontend to use proxy
+- [x] CORS configuration & error handling
+- [x] LocalStorage for keys & preferences
+- [x] Storyboard history sidebar
+- [x] Scene inline editing
+- [x] PDF Export using media print
+- [x] Keyboard shortcuts
+
 ---
 
 ## Blockers & Issues
 
 | # | Issue | Impact | Status | Resolution |
 |---|---|---|---|---|
-| ISS-001 | CORS blocking API calls from browser | High — storyboard gen fails for most providers | 🔴 Open | Need backend proxy |
-| ISS-002 | Error bar styling not applied | Low — errors show but unstyled | 🔴 Open | Add missing CSS class |
-| ISS-003 | Invalid HTML `<mono>` tag | Low — works but not semantic | 🔴 Open | Replace with `<span>` |
+| ISS-001 | CORS blocking API calls from browser | High — storyboard gen fails | ✅ Closed | Backend proxy server implemented on port 3456 |
+| ISS-002 | Error bar styling not applied | Low — unstyled error bar | ✅ Closed | Class `err-bar` added to HTML element |
+| ISS-003 | Invalid HTML `<mono>` tag | Low — invalid W3C HTML | ✅ Closed | Replaced with `<span class="mono">` and updated CSS |
 
 ---
 
@@ -84,35 +114,12 @@
 
 | Date | Activity | Phase |
 |---|---|---|
+| 2026-07-12 | ✅ Phase 2.4 Refactor completed — project structure is clean and modular | Phase 2 |
+| 2026-07-12 | ✅ Phase 3.1, 3.2, 3.3 initiated — frontend/backend image generation support added | Phase 3 |
+| 2026-07-12 | ✅ Phase 2.3 fully completed — added PDF export styling and window.print(), implemented keyboard shortcuts | Phase 2 |
 | 2026-07-12 | ✅ Phase 2.2 completed — Express backend proxy on port 3456, auto-detect backend mode | Phase 2 |
 | 2026-07-12 | ✅ Phase 2.3 completed — localStorage, history, scene editing, toast, loading skeleton, download JSON | Phase 2 |
 | 2026-07-12 | ✅ Phase 2.1 completed — fixed `<mono>` tag, added `<title>`, fixed `#erBar` class, added SEO meta tags | Phase 2 |
 | 2026-07-12 | Project documentation created (PRD, Architecture, Roadmap, Changelog, Progress) | Docs |
 | 2026-07-12 | Code review completed — identified 3 bugs, CORS issue, architecture gaps | Review |
 | 2026-07-12 | v3.0 — Storyboard Generator MVP completed | Phase 1 |
-
----
-
-## How to Update This File
-
-Saat menyelesaikan task:
-1. Ubah `[ ]` menjadi `[x]` pada task yang selesai
-2. Update progress bar dan task count di Summary table
-3. Tambahkan entry di Activity Log
-4. Jika ada blocker baru, tambahkan di Blockers & Issues table
-5. Update `Last Updated` date di header
-
-Progress bar guide:
-```
-░░░░░░░░░░  0%
-█░░░░░░░░░  10%
-██░░░░░░░░  20%
-███░░░░░░░  30%
-████░░░░░░  40%
-█████░░░░░  50%
-██████░░░░  60%
-███████░░░  70%
-████████░░  80%
-█████████░  90%
-██████████  100%
-```
