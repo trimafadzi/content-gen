@@ -219,12 +219,11 @@ app.post('/api/image/generate', async (req, res) => {
     // 2. Stability AI
     if (provider === 'stability') {
       // For Stability Core, SD3, etc.
-      const bodyObj = {
-        prompt,
-        output_format: 'jpeg',
-        aspect_ratio: size === '768x1344' ? '9:16' : (size === '1344x768' ? '16:9' : '1:1')
-      };
-      if (seed) bodyObj.seed = seed;
+      const formData = new FormData();
+      formData.append('prompt', prompt);
+      formData.append('output_format', 'jpeg');
+      formData.append('aspect_ratio', size === '768x1344' ? '9:16' : (size === '1344x768' ? '16:9' : '1:1'));
+      if (seed) formData.append('seed', seed.toString());
 
       const response = await fetch(`https://api.stability.ai/v2beta/stable-image/generate/${model === 'core' ? 'core' : 'sd3'}`, {
         method: 'POST',
@@ -232,7 +231,7 @@ app.post('/api/image/generate', async (req, res) => {
           'Authorization': `Bearer ${apiKey}`,
           'Accept': 'application/json'
         },
-        body: JSON.stringify(bodyObj)
+        body: formData
       });
 
       if (!response.ok) {
@@ -372,23 +371,13 @@ const https = require('https');
 const { exec, execSync } = require('child_process');
 
 // Helper to download external files (images)
-function downloadFile(url, dest) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    const client = url.startsWith('https') ? https : http;
-    client.get(url, (response) => {
-      if (response.statusCode !== 200) {
-        reject(new Error(`Failed to download: status ${response.statusCode}`));
-        return;
-      }
-      response.pipe(file);
-      file.on('finish', () => {
-        file.close(resolve);
-      });
-    }).on('error', (err) => {
-      fs.unlink(dest, () => reject(err));
-    });
-  });
+async function downloadFile(url, dest) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download: status ${response.status}`);
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  fs.writeFileSync(dest, buffer);
 }
 
 // Helper to get audio duration using ffprobe
