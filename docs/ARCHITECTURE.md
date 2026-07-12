@@ -52,79 +52,72 @@
 
 ---
 
-## 2. Current Architecture (v3.0)
+## 2. Current Architecture (v3.4)
 
 ### Stack
-- **Frontend**: Single HTML file (vanilla HTML/CSS/JS)
-- **Backend**: None (direct API calls from browser)
-- **Styling**: Neobrutalism design system (CSS custom properties)
-- **Fonts**: Space Grotesk + IBM Plex Mono (Google Fonts)
+- **Frontend**: HTML entrypoint (`storyboard_generator_neobrutalism.html`), modularized CSS (`frontend/css/style.css`), and modularized vanilla JS (`frontend/js/app.js`).
+- **Backend**: Node.js + Express proxy server (running on port 3456) serving proxy endpoints for LLM (CORS-bypass), Image Generation, and TTS Narration.
+- **Audio/TTS**: Google Translate TTS integration with local MD5-hashed caching.
+- **Visuals**: Pollinations AI (free), DALL-E, Stability, and Together AI (Flux) integration with Style presets and Style Lock.
+- **State Management**: localStorage (keys, preferences) + in-memory state.
 
-### File Structure (Current)
-```
-content-gen/
-├── storyboard_generator_neobrutalism.html   # Single-page app (403 lines)
-└── PRD.md                                    # This document
-```
-
-### Data Flow (Current)
-```
-User Input → Browser fetch() → LLM API → JSON response → Render Scene Cards
-```
-
-> ⚠️ **Known Issue**: Direct browser → API calls blocked by CORS for most providers.
-
----
-
-## 3. Target Architecture (v5.0)
-
-### Stack
-- **Frontend**: Modular HTML/CSS/JS (atau migrate ke Vite jika disetujui)
-- **Backend**: Node.js + Express
-- **Video Processing**: FFmpeg (server-side)
-- **Storage**: Temporary file storage (server disk)
-
-### File Structure (Target)
+### File Structure (v3.4)
 ```
 content-gen/
 ├── docs/
-│   ├── PRD.md
 │   ├── ARCHITECTURE.md
 │   ├── ROADMAP.md
 │   └── CHANGELOG.md
 │
 ├── frontend/
-│   ├── index.html
 │   ├── css/
-│   │   ├── base.css            # Reset, variables, typography
-│   │   ├── components.css      # Reusable components
-│   │   └── layout.css          # Grid, sidebar, content area
-│   ├── js/
-│   │   ├── app.js              # Main app logic
-│   │   ├── providers.js        # LLM provider configs
-│   │   ├── api.js              # API service layer
-│   │   ├── renderer.js         # Scene card rendering
-│   │   ├── storage.js          # localStorage/IndexedDB
-│   │   └── timeline.js         # Timeline editor (Phase 5)
-│   └── assets/
-│       └── icons/
+│   │   └── style.css           # Extracted styles
+│   └── js/
+│       └── app.js              # Main modular application logic
 │
 ├── backend/
-│   ├── server.js               # Express server
-│   ├── routes/
-│   │   ├── llm.js              # LLM proxy routes
-│   │   ├── image.js            # Image generation routes
-│   │   ├── tts.js              # TTS generation routes
-│   │   └── video.js            # Video assembly routes
-│   ├── services/
-│   │   ├── ffmpeg.js           # FFmpeg wrapper
-│   │   ├── imageGen.js         # Image generation service
-│   │   └── ttsGen.js           # TTS service
-│   ├── temp/                   # Generated files (gitignored)
-│   └── package.json
+│   ├── server.js               # Express server (Port 3456)
+│   ├── package.json
+│   └── temp/                   # Cached TTS MP3 files
 │
+├── PRD.md
 ├── PROGRESS.md
-└── README.md
+├── README.md
+└── storyboard_generator_neobrutalism.html   # Main HTML entrypoint
+```
+
+### Data Flow (v3.4)
+```
+User Input 
+   │
+   ▼
+[1] Frontend (app.js) ──► Express Proxy Server (server.js)
+   │                           │
+   ├─► /api/llm/generate ──────┼─► Outbound LLM API (CORS Bypass)
+   ├─► /api/image/generate ────┼─► Outbound Visual API (DALL-E/Flux)
+   └─► /api/tts/generate ──────┼─► Outbound Google TTS API (MP3 Cache)
+                               │
+   ◄── JSON/Images/MP3 ────────┘
+```
+
+---
+
+## 3. Target Architecture (v5.0)
+
+### Stack (Future Additions)
+- **Video Assembly**: FFmpeg (server-side) to compile images and audio into final MP4.
+- **Subtitles Overlay**: FFmpeg subtitle burn-in.
+- **Timeline Editor**: Client-side drag and drop sequence editor.
+
+### File Structure (v5.0 target additions)
+```
+content-gen/
+... (same as current)
+├── backend/
+│   ├── server.js
+│   ├── services/
+│   │   └── ffmpeg.js           # FFmpeg wrapper service for video compilation
+│   └── temp/                   # Cached TTS MP3 files, generated video outputs
 ```
 
 ### Data Flow (Target)

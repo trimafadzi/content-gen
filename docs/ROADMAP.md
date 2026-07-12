@@ -4,7 +4,7 @@
 | Field | Detail |
 |---|---|
 | **Last Updated** | 2026-07-12 |
-| **Current Phase** | Phase 1 ✅ → Phase 2 🔄 |
+| **Current Phase** | Phase 4 ✅ → Phase 5 🔄 |
 
 ---
 
@@ -14,7 +14,7 @@
 Phase 1          Phase 2          Phase 3          Phase 4          Phase 5
 Storyboard  →  Bug Fix &    →  Visual Gen   →  Audio/TTS    →  Video Assembly
 Generator       UX Polish       per Scene       Pipeline        & Export
-  ✅ Done       🔄 Next         🔴 Planned      🔴 Planned      🔴 Planned
+  ✅ Done       ✅ Done         ✅ Done         ✅ Done         🔄 Next
 ```
 
 ---
@@ -37,110 +37,104 @@ Generator       UX Polish       per Scene       Pipeline        & Export
 | Custom provider support | ✅ |
 | Basic responsive layout | ✅ |
 
-**Deliverable**: `storyboard_generator_neobrutalism.html`
+**Deliverable**: `storyboard_generator_neobrutalism.html` (monolith MVP)
 
 ---
 
-## Phase 2: Bug Fix & UX Polish 🔄 IN PROGRESS
+## Phase 2: Bug Fix & UX Polish ✅ DONE
 
-**Goal**: Fix known bugs, improve UX, add persistence
+**Goal**: Fix known bugs, improve UX, add persistence, and modularize code
 
 ### 2.1 — Critical Bug Fixes
 | Task | Priority | Status |
 |---|---|---|
-| Fix `<mono>` invalid HTML tag → `<span class="mono">` | P0 | 🔴 |
-| Add missing `<title>` tag | P0 | 🔴 |
-| Fix `#erBar` missing `class="err-bar"` | P0 | 🔴 |
-| Add meta description & SEO tags | P1 | 🔴 |
+| Fix `<mono>` invalid HTML tag → `<span class="mono">` | P0 | ✅ |
+| Add missing `<title>` tag | P0 | ✅ |
+| Fix `#erBar` missing `class="err-bar"` | P0 | ✅ |
+| Add meta description & SEO tags | P1 | ✅ |
 
 ### 2.2 — CORS & Backend Proxy
 | Task | Priority | Status |
 |---|---|---|
-| Setup Node.js + Express backend | P0 | 🔴 |
-| Create `/api/llm/generate` proxy endpoint | P0 | 🔴 |
-| Migrate frontend fetch calls to use proxy | P0 | 🔴 |
-| Add CORS configuration | P0 | 🔴 |
-| Error handling & retry logic | P1 | 🔴 |
+| Setup Node.js + Express backend (port 3456) | P0 | ✅ |
+| Create `/api/llm/generate` proxy endpoint | P0 | ✅ |
+| Migrate frontend fetch calls to use proxy | P0 | ✅ |
+| Add CORS configuration | P0 | ✅ |
+| Error handling & retry logic | P1 | ✅ |
 
 ### 2.3 — UX Improvements
 | Task | Priority | Status |
 |---|---|---|
-| localStorage for API key persistence | P1 | 🔴 |
-| localStorage for user preferences | P1 | 🔴 |
-| Loading skeleton animation | P1 | 🔴 |
-| Scene inline editing (click to edit) | P1 | 🔴 |
-| Storyboard history sidebar | P2 | 🔴 |
-| Download storyboard as PDF | P2 | 🔴 |
-| Keyboard shortcuts | P2 | 🔴 |
+| localStorage for API key persistence | P1 | ✅ |
+| localStorage for user preferences | P1 | ✅ |
+| Loading skeleton animation | P1 | ✅ |
+| Scene inline editing (click to edit) | P1 | ✅ |
+| Storyboard history sidebar | P2 | ✅ |
+| Download storyboard as PDF (via print media styles) | P2 | ✅ |
+| Keyboard shortcuts (Ctrl+Enter, Esc, 1-3 Tab switching) | P2 | ✅ |
 
 ### 2.4 — Code Refactor
 | Task | Priority | Status |
 |---|---|---|
-| Extract CSS to separate file | P1 | 🔴 |
-| Extract JS to separate modules | P1 | 🔴 |
-| Rename minified variables to descriptive names | P1 | 🔴 |
-| Add code comments & documentation | P2 | 🔴 |
+| Extract CSS to separate file (`frontend/css/style.css`) | P1 | ✅ |
+| Extract JS to separate modules (`frontend/js/app.js`) | P1 | ✅ |
+| Rename variables to clean/descriptive names | P1 | ✅ |
+| Add code comments & modular structure | P2 | ✅ |
 
 ---
 
-## Phase 3: Visual Generation per Scene 🔴 PLANNED
+## Phase 3: Visual Generation per Scene ✅ DONE
 
-**Goal**: Generate image/visual preview untuk setiap scene
+**Goal**: Generate image/visual preview untuk setiap scene dengan konsistensi gaya
 
 | Task | Priority | Status |
 |---|---|---|
-| Image provider integration (DALL-E / Flux / Stable Diffusion) | P0 | 🔴 |
-| Backend route `/api/image/generate` | P0 | 🔴 |
-| Image preview di scene card | P0 | 🔴 |
-| Image regeneration button per scene | P1 | 🔴 |
-| Style presets (realistic, anime, 3D, miniature) | P1 | 🔴 |
-| Visual consistency / style lock across scenes | P1 | 🔴 |
-| Image gallery & selection | P2 | 🔴 |
-| Custom image upload per scene | P2 | 🔴 |
-
-**Dependency**: Phase 2 backend must be ready
+| Image provider integration (Pollinations, DALL-E, Stability, Together AI Flux) | P0 | ✅ |
+| Backend route `/api/image/generate` | P0 | ✅ |
+| Image preview container di scene card | P0 | ✅ |
+| Image regeneration button per scene | P1 | ✅ |
+| Style presets (Realistic, Anime, 3D Pixar, Cyberpunk, Vector, Miniature) | P1 | ✅ |
+| Visual consistency / style lock across scenes (using locked seeds) | P1 | ✅ |
+| Image gallery & selection | P2 | 🔴 (Out of Scope for MVP) |
+| Custom image upload per scene | P2 | 🔴 (Out of Scope for MVP) |
 
 ---
 
-## Phase 4: Audio & TTS Pipeline 🔴 PLANNED
+## Phase 4: Audio & TTS Pipeline ✅ DONE
 
 **Goal**: Generate narration audio dan SFX per scene
 
 | Task | Priority | Status |
 |---|---|---|
-| Edge-TTS integration | P0 | 🔴 |
-| Backend route `/api/tts/generate` | P0 | 🔴 |
-| Voice selection UI | P1 | 🔴 |
-| Audio preview per scene | P0 | 🔴 |
-| ElevenLabs integration (premium option) | P2 | 🔴 |
-| Background music selection | P2 | 🔴 |
-| SFX library integration | P2 | 🔴 |
-| Audio waveform display | P2 | 🔴 |
-
-**Dependency**: Phase 2 backend must be ready
+| Edge-TTS / Google-TTS integration (zero keys needed) | P0 | ✅ |
+| Backend route `/api/tts/generate` with local MD5 caching | P0 | ✅ |
+| Voice selection UI (automatic via narration language) | P1 | ✅ |
+| Audio preview playback button per scene card | P0 | ✅ |
+| ElevenLabs integration (premium option) | P2 | 🔴 (Optional future upgrade) |
+| Background music selection | P2 | 🔴 (Out of Scope for MVP) |
+| SFX library integration | P2 | 🔴 (Out of Scope for MVP) |
+| Audio waveform display | P2 | 🔴 (Out of Scope for MVP) |
 
 ---
 
-## Phase 5: Video Assembly & Export 🔴 PLANNED
+## Phase 5: Video Assembly & Export 🔄 NEXT
 
 **Goal**: Combine images + audio → final video MP4
 
 | Task | Priority | Status |
 |---|---|---|
-| FFmpeg installation & wrapper service | P0 | 🔴 |
-| Backend route `/api/video/assemble` | P0 | 🔴 |
-| Scene image → video frame conversion | P0 | 🔴 |
-| Audio overlay (narration + BGM) | P0 | 🔴 |
+| FFmpeg installation & wrapper service | P0 | 🔄 |
+| Backend route `/api/video/assemble` | P0 | 🔄 |
+| Scene image → video frame conversion | P0 | 🔄 |
+| Audio overlay (narration + BGM) | P0 | 🔄 |
 | Scene transitions (fade, cut, zoom) | P1 | 🔴 |
 | Text overlay / subtitle burn-in | P1 | 🔴 |
-| Video preview player | P0 | 🔴 |
-| MP4 download (720p / 1080p) | P0 | 🔴 |
-| Progress indicator | P1 | 🔴 |
+| Video preview player | P0 | 🔄 |
+| MP4 download (720p / 1080p) | P0 | 🔄 |
+| Progress indicator | P1 | 🔄 |
 | Timeline drag & drop editor | P2 | 🔴 |
 | Batch generation mode | P2 | 🔴 |
 | Watermark / branding | P2 | 🔴 |
-
-**Dependency**: Phase 3 & 4 must be ready
 
 ---
 
@@ -150,18 +144,16 @@ Generator       UX Polish       per Scene       Pipeline        & Export
 Phase 1 (Done)
     │
     ▼
-Phase 2 (Bug Fix + Backend Setup)
+Phase 2 (Bug Fix + Backend Setup)  [Done]
     │
     ├──────────────────┐
     ▼                  ▼
-Phase 3 (Images)   Phase 4 (Audio)   ← Can run in parallel
+Phase 3 (Images)   Phase 4 (Audio)   [Done]
     │                  │
     └────────┬─────────┘
              ▼
-        Phase 5 (Video Assembly)
+        Phase 5 (Video Assembly)     [Next]
 ```
-
-> **Note**: Phase 3 dan 4 bisa dikerjakan paralel setelah Phase 2 selesai.
 
 ---
 
@@ -169,7 +161,9 @@ Phase 3 (Images)   Phase 4 (Audio)   ← Can run in parallel
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-07-12 | Separated CSS & JS into modular structures | Keeps the monolithic HTML file clean and scalable |
+| 2026-07-12 | Used Google TTS API via backend proxy with local hash caching | Free, high-quality translation voices, saves network bandwidth |
+| 2026-07-12 | Implemented visual presets & style seed lock for Pollinations/Flux | Insures consistent generation outputs across storyboard cards |
 | 2026-07-12 | Keep vanilla JS for frontend (no framework) | Minimize complexity for MVP, reconsider at Phase 5 |
 | 2026-07-12 | Use Node.js + Express for backend | Lightweight, same language as frontend |
-| 2026-07-12 | Edge-TTS as primary TTS | Free, good quality, supports Indonesian |
 | 2026-07-12 | FFmpeg for video assembly | Industry standard, open source |

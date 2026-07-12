@@ -94,40 +94,40 @@ Content creator menghadapi bottleneck di tahap **ideation → storyboard → pro
 | F1.9 | Custom provider (OpenAI-compatible endpoint) | P1 | ✅ Done |
 | F1.10 | Responsive mobile layout | P1 | ✅ Done |
 
-### Phase 2: Bug Fix & UX Polish (v3.1) 🔧
+### Phase 2: Bug Fix & UX Polish (v3.2) 🔧
 
 | ID | Feature | Priority | Status |
 |---|---|---|---|
-| F2.1 | Fix HTML semantic issues (`<mono>`, missing `<title>`) | P0 | 🔴 Todo |
-| F2.2 | Fix error bar missing CSS class | P0 | 🔴 Todo |
-| F2.3 | Fix CORS issue — tambah backend proxy | P0 | 🔴 Todo |
-| F2.4 | LocalStorage untuk API key & preferences | P1 | 🔴 Todo |
-| F2.5 | Loading skeleton / better loading state | P1 | 🔴 Todo |
-| F2.6 | Storyboard history (localStorage) | P2 | 🔴 Todo |
-| F2.7 | Scene inline editing | P1 | 🔴 Todo |
-| F2.8 | Download storyboard as PDF/PNG | P2 | 🔴 Todo |
-| F2.9 | SEO meta tags | P2 | 🔴 Todo |
+| F2.1 | Fix HTML semantic issues (`<mono>`, missing `<title>`) | P0 | ✅ Done |
+| F2.2 | Fix error bar missing CSS class | P0 | ✅ Done |
+| F2.3 | Fix CORS issue — tambah backend proxy | P0 | ✅ Done |
+| F2.4 | LocalStorage untuk API key & preferences | P1 | ✅ Done |
+| F2.5 | Loading skeleton / better loading state | P1 | ✅ Done |
+| F2.6 | Storyboard history (localStorage) | P2 | ✅ Done |
+| F2.7 | Scene inline editing | P1 | ✅ Done |
+| F2.8 | Download storyboard as PDF/PNG | P2 | ✅ Done |
+| F2.9 | SEO meta tags | P2 | ✅ Done |
 
-### Phase 3: Visual Generation (v4.0) 🎨
-
-| ID | Feature | Priority | Status |
-|---|---|---|---|
-| F3.1 | Image generation per scene (DALL-E / Flux / Stable Diffusion) | P0 | 🔴 Todo |
-| F3.2 | Image preview di scene card | P0 | 🔴 Todo |
-| F3.3 | Image regeneration per scene | P1 | 🔴 Todo |
-| F3.4 | Image style presets (realistic, anime, 3D, miniature) | P1 | 🔴 Todo |
-| F3.5 | Image editing / adjustment per scene | P2 | 🔴 Todo |
-| F3.6 | Visual consistency across scenes (style lock) | P1 | 🔴 Todo |
-
-### Phase 4: Audio & TTS (v4.1) 🔊
+### Phase 3: Visual Generation (v3.3) 🎨
 
 | ID | Feature | Priority | Status |
 |---|---|---|---|
-| F4.1 | Text-to-Speech narration (Edge-TTS / ElevenLabs) | P0 | 🔴 Todo |
-| F4.2 | Voice selection & preview | P1 | 🔴 Todo |
-| F4.3 | Background music library | P2 | 🔴 Todo |
-| F4.4 | SFX auto-matching per scene | P2 | 🔴 Todo |
-| F4.5 | Audio timeline / waveform editor | P2 | 🔴 Todo |
+| F3.1 | Image generation per scene (DALL-E / Flux / Stable Diffusion) | P0 | ✅ Done |
+| F3.2 | Image preview di scene card | P0 | ✅ Done |
+| F3.3 | Image regeneration per scene | P1 | ✅ Done |
+| F3.4 | Image style presets (realistic, anime, 3D, miniature) | P1 | ✅ Done |
+| F3.5 | Image editing / adjustment per scene | P2 | 🔴 Cancelled (Out of Scope) |
+| F3.6 | Visual consistency across scenes (style lock via seed mapping) | P1 | ✅ Done |
+
+### Phase 4: Audio & TTS (v3.4) 🔊
+
+| ID | Feature | Priority | Status |
+|---|---|---|---|
+| F4.1 | Text-to-Speech narration (Google-TTS proxy) | P0 | ✅ Done |
+| F4.2 | Voice selection & preview | P1 | ✅ Done |
+| F4.3 | Background music library | P2 | 🔴 Cancelled (Out of Scope) |
+| F4.4 | SFX auto-matching per scene | P2 | 🔴 Cancelled (Out of Scope) |
+| F4.5 | Audio timeline / waveform editor | P2 | 🔴 Cancelled (Out of Scope) |
 
 ### Phase 5: Video Assembly & Export (v5.0) 🎬
 

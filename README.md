@@ -2,15 +2,21 @@
 
 > AI-powered storyboard-to-video generator untuk social media content creators.
 
-Dari ide 1 kalimat → storyboard terstruktur → video siap upload.
+Dari ide 1 kalimat → storyboard terstruktur → visual gambar per scene → narasi suara → video siap upload.
 
 ---
 
 ## ⚡ Quick Start
 
-Buka `storyboard_generator_neobrutalism.html` di browser, masukkan API key dan ide konten, lalu klik Generate.
-
-> **Note**: Versi saat ini (v3.0) memanggil API langsung dari browser. Beberapa provider mungkin terblokir CORS. Backend proxy dalam development.
+1. Jalankan backend server:
+   ```bash
+   cd backend
+   npm install
+   npm start
+   ```
+2. Buka `http://localhost:3456` di browser Anda.
+3. Masukkan API key, ketik ide konten, lalu klik **Generate Storyboard**.
+4. Setelah storyboard muncul, klik **Generate All Images** untuk merender visual tiap scene, dan klik tombol speaker di kolom Narasi untuk mendengarkan suaranya.
 
 ---
 
@@ -18,12 +24,21 @@ Buka `storyboard_generator_neobrutalism.html` di browser, masukkan API key dan i
 
 ```
 content-gen/
-├── storyboard_generator_neobrutalism.html   # Main app (v3.0)
+├── storyboard_generator_neobrutalism.html   # Main HTML entrypoint (refactored)
+├── frontend/
+│   ├── css/
+│   │   └── style.css                         # Modular CSS styles
+│   └── js/
+│       └── app.js                            # Modular JS application logic
+├── backend/
+│   ├── server.js                             # Express proxy API server (port 3456)
+│   ├── package.json
+│   └── temp/                                 # Saved TTS mp3 files & outputs (gitignored)
 ├── PRD.md                                    # Product Requirements Document
-├── PROGRESS.md                               # Progress tracker & task checklist
+├── PROGRESS.md                               # Live progress tracker & checklists
 ├── README.md                                 # This file
 └── docs/
-    ├── ARCHITECTURE.md                       # Technical architecture
+    ├── ARCHITECTURE.md                       # Technical architecture & API design
     ├── ROADMAP.md                            # Development roadmap (5 phases)
     └── CHANGELOG.md                          # Version history
 ```
@@ -47,10 +62,10 @@ content-gen/
 | Phase | Description | Status |
 |---|---|---|
 | 1 | Storyboard Generator MVP | ✅ Done |
-| 2 | Bug Fix & UX Polish + Backend | 🔄 Next |
-| 3 | Visual/Image Generation per Scene | 🔴 Planned |
-| 4 | Audio/TTS Pipeline | 🔴 Planned |
-| 5 | Video Assembly & Export | 🔴 Planned |
+| 2 | Bug Fix & UX Polish + Backend | ✅ Done |
+| 3 | Visual/Image Generation per Scene | ✅ Done |
+| 4 | Audio/TTS Pipeline | ✅ Done |
+| 5 | Video Assembly & Export | 🔄 Next |
 
 ---
 
@@ -61,14 +76,14 @@ content-gen/
 | Frontend | HTML, CSS (Neobrutalism), Vanilla JS |
 | Fonts | Space Grotesk, IBM Plex Mono |
 | AI Providers | Anthropic, OpenAI, Gemini, OpenRouter, Groq, DeepSeek, Mistral |
-| Backend (planned) | Node.js + Express |
+| Backend | Node.js + Express |
+| Audio/TTS | google-tts-api |
 | Video (planned) | FFmpeg |
-| TTS (planned) | Edge-TTS / ElevenLabs |
 
 ---
 
 ## 📊 Current Status
 
-**Version**: v3.0  
-**Overall Progress**: 20% (11/57 tasks)  
-**Current Phase**: Phase 2 — Bug Fix & UX Polish
+**Version**: v3.4.0  
+**Overall Progress**: 66% (38/57 tasks completed)  
+**Current Phase**: Phase 5 — Video Assembly & Export
