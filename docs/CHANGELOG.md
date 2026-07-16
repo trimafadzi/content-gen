@@ -16,6 +16,18 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+
+## [3.5.3] — 2026-07-16
+
+### Added
+- ✨ Added image generation provider option `weizerouter` labeled `GPT-5.5 Prompt → Image`.
+- ✨ Added backend image route support that uses WeizeRouter `wz/gpt-5.5` to enhance scene prompts, then renders via Pollinations because WeizeRouter does not expose `/v1/images/generations`.
+
+### Fixed
+- ✅ Image generation now uses the detected backend base path (`/storyboard-api`) instead of hardcoded `/api`, matching the public `/storyboard/` deployment.
+
+---
+
 ## [3.5.2] — 2026-07-15
 
 ### Added

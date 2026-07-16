@@ -18,6 +18,7 @@ const PROVIDERS = {
 
 // Image generation provider config
 const IMAGE_PROVIDERS = {
+  weizerouter: { label: 'GPT-5.5 Prompt → Image',   note: 'Uses WeizeRouter key; GPT-5.5 enhances prompt, Pollinations renders image', models: ['wz/gpt-5.5'] },
   openai:      { label: 'DALL-E 3 (OpenAI)',       note: 'Uses OpenAI API key', models: ['dall-e-3', 'dall-e-2'] },
   stability:   { label: 'Stable Diffusion (API)',  note: 'stability.ai key', models: ['sd3-medium', 'sd3-large', 'core'] },
   together:    { label: 'Flux via Together AI',    note: 'together.ai key', models: ['black-forest-labs/FLUX.1-schnell-Free', 'black-forest-labs/FLUX.1-schnell'] },
@@ -324,7 +325,7 @@ async function generateSceneImage(sceneIdx, visualPrompt, styleHint) {
     if (!apiKey && imgProv !== 'pollinations') {
       throw new Error(`API key untuk image provider "${imgProv}" belum dimasukkan. Gunakan Pollinations (gratis) atau masukkan key di sidebar.`);
     }
-    const response = await fetch('/api/image/generate', {
+    const response = await fetch(`${backendBase}/image/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider: imgProv, model: imgModel, prompt: fullPrompt, size, apiKey, seed })

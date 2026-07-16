@@ -189,6 +189,43 @@ app.post('/api/image/generate', async (req, res) => {
     console.log(`[Image] ${provider}/${model} → size: ${size || 'default'}, seed: ${seed || 'none'}...`);
     const startTime = Date.now();
 
+    // 0. WeizeRouter GPT-5.5 prompt enhancer + Pollinations renderer
+    // WeizeRouter currently exposes OpenAI-compatible chat completions, not /images/generations.
+    // Use GPT-5.5 to turn each scene into a strong image prompt, then render via Pollinations.
+    if (provider === 'weizerouter') {
+      if (!apiKey) throw new Error('Missing WeizeRouter API key');
+
+      const response = await fetch('https://weizerouter.web.id/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model || 'wz/gpt-5.5',
+          messages: [
+            { role: 'system', content: 'You rewrite short storyboard scene descriptions into a single concise, vivid image-generation prompt. Return only the prompt, no markdown.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 700
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `WeizeRouter API error: HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const enhancedPrompt = (data.choices?.[0]?.message?.content || prompt).trim();
+      const [w, h] = (size || '1024x1024').split('x');
+      let imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?width=${w}&height=${h}&model=flux&nologo=true`;
+      if (seed) imageUrl += `&seed=${seed}`;
+
+      return res.json({ success: true, imageUrl, prompt: enhancedPrompt, elapsed_ms: Date.now() - startTime });
+    }
+
     // 1. OpenAI DALL-E
     if (provider === 'openai') {
       const response = await fetch('https://api.openai.com/v1/images/generations', {
