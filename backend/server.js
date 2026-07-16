@@ -34,6 +34,7 @@ const ENDPOINTS = {
   openai: 'https://api.openai.com/v1/chat/completions',
   gemini: 'https://generativelanguage.googleapis.com/v1beta/models',
   openrouter: 'https://openrouter.ai/api/v1/chat/completions',
+  weizerouter: 'https://weizerouter.web.id/v1/chat/completions',
   groq: 'https://api.groq.com/openai/v1/chat/completions',
   deepseek: 'https://api.deepseek.com/v1/chat/completions',
   mistral: 'https://api.mistral.ai/v1/chat/completions'
@@ -79,7 +80,7 @@ function buildProviderRequest(provider, model, apiKey, prompt, customUrl) {
     };
   }
 
-  // OpenAI-compatible providers (OpenAI, OpenRouter, Groq, DeepSeek, Mistral, Custom)
+  // OpenAI-compatible providers (OpenAI, OpenRouter, WeizeRouter, Groq, DeepSeek, Mistral, Custom)
   const baseUrl = provider === 'custom'
     ? (customUrl.replace(/\/$/, '') + '/chat/completions')
     : ENDPOINTS[provider];

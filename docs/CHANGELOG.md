@@ -16,6 +16,22 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.5.2] — 2026-07-15
+
+### Added
+- ✨ Added WeizeRouter LLM provider (`weizerouter`) to the StoryBOARD GEN provider selector.
+- ✨ Added GPT-5.5 model option `wz/gpt-5.5`.
+- ✨ Added backend OpenAI-compatible route for WeizeRouter via `https://weizerouter.web.id/v1/chat/completions`.
+
+### Verified
+- ✅ `node --check backend/server.js` and `node --check frontend/js/app.js`.
+- ✅ Restarted backend on port `3456` with PID `961932`.
+- ✅ Verified `http://127.0.0.1:3456/api/health`, `http://103.59.161.81/storyboard/`, and `http://103.59.161.81/storyboard-api/health` returned HTTP 200.
+- ✅ Added cache-busting script query `app.js?v=3.5.2-weizerouter` so mobile browsers load the latest provider config.
+- ✅ Fixed public subpath backend detection by trying `/storyboard-api/health` and routing LLM calls to `/storyboard-api/llm/generate` when served from `/storyboard/`.
+
+---
+
 ## [3.5.1] — 2026-07-12
 
 ### Fixed

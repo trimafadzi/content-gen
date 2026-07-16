@@ -3,7 +3,7 @@
 
 | Field | Detail |
 |---|---|
-| **Last Updated** | 2026-07-12 |
+| **Last Updated** | 2026-07-15 |
 | **Status** | Draft |
 
 ---
@@ -52,16 +52,17 @@
 
 ---
 
-## 2. Current Architecture (v3.4)
+## 2. Current Architecture (v3.5.2)
 
 ### Stack
 - **Frontend**: HTML entrypoint (`storyboard_generator_neobrutalism.html`), modularized CSS (`frontend/css/style.css`), and modularized vanilla JS (`frontend/js/app.js`).
 - **Backend**: Node.js + Express proxy server (running on port 3456) serving proxy endpoints for LLM (CORS-bypass), Image Generation, and TTS Narration.
+- **LLM Providers**: Anthropic, OpenAI, Gemini, OpenRouter, WeizeRouter (`weizerouter` → `wz/gpt-5.5` via `https://weizerouter.web.id/v1/chat/completions`), Groq, DeepSeek, Mistral, and Custom OpenAI-compatible endpoints.
 - **Audio/TTS**: Google Translate TTS integration with local MD5-hashed caching.
 - **Visuals**: Pollinations AI (free), DALL-E, Stability, and Together AI (Flux) integration with Style presets and Style Lock.
 - **State Management**: localStorage (keys, preferences) + in-memory state.
 
-### File Structure (v3.4)
+### File Structure (v3.5.2)
 ```
 content-gen/
 ├── docs/
@@ -86,7 +87,7 @@ content-gen/
 └── storyboard_generator_neobrutalism.html   # Main HTML entrypoint
 ```
 
-### Data Flow (v3.4)
+### Data Flow (v3.5.2)
 ```
 User Input 
    │
@@ -150,8 +151,8 @@ User Input
 ### LLM Proxy
 ```
 POST /api/llm/generate
-Body: { provider, model, apiKey, prompt }
-Response: { success, data: { storyboard JSON } }
+Body: { provider, model, apiKey, prompt, customUrl? }
+Response: { success, text, meta: { provider, model, chars, elapsed_ms } }
 ```
 
 ### Image Generation

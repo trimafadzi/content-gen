@@ -3,7 +3,7 @@
 
 | Field | Detail |
 |---|---|
-| **Last Updated** | 2026-07-12 |
+| **Last Updated** | 2026-07-15 |
 | **Current Phase** | Phase 5 — Video Assembly (✅ Completed) |
 | **Overall Progress** | ██████████ 100% |
 
@@ -26,7 +26,7 @@
 ## Current Status: 🏁 MVP Complete
 
 All core stages of the storyboard-to-video workflow are implemented, fully tested, and functional:
-1. **Storyboard Breakdown** (8 AI Providers, auto-save settings, session history, inline card edit)
+1. **Storyboard Breakdown** (9 AI Providers including WeizeRouter `wz/gpt-5.5`, auto-save settings, session history, inline card edit)
 2. **Visual Preset rendering & style consistency seed-locking** (Free Pollinations, DALL-E, Stability, Together AI Flux)
 3. **Speech synthesis narration** (Google Translate TTS integration with MD5 hash-caching and UI playback preview buttons)
 4. **FFmpeg Video Compiler** (Center crop scale fitting, yellow-on-black comic-outline subtitles burn-in, audio sync, and MP4 concatenation)
@@ -36,7 +36,7 @@ All core stages of the storyboard-to-video workflow are implemented, fully teste
 ## Completed Work Checklist
 
 ### Phase 1 — Storyboard Generator MVP ✅
-- [x] Multi-provider LLM support (8 providers)
+- [x] Multi-provider LLM support (9 providers, including WeizeRouter `wz/gpt-5.5`)
 - [x] Provider-specific API integration
 - [x] Neobrutalism UI design
 - [x] Content idea input form
@@ -105,6 +105,7 @@ All core stages of the storyboard-to-video workflow are implemented, fully teste
 
 | Date | Activity | Phase |
 |---|---|---|
+| 2026-07-15 | ✅ Added WeizeRouter GPT-5.5 provider (`weizerouter`) with model `wz/gpt-5.5`, backend endpoint `https://weizerouter.web.id/v1/chat/completions`, UI provider button, and post-restart health validation | Provider maintenance |
 | 2026-07-12 | ✅ Robust JSON parsing — fixed parser errors on LLM outputs using client-side auto-repair | Refactor/Bugfix |
 | 2026-07-12 | ✅ Phase 5 completed — FFmpeg video assembler integration, custom neobrutalism subtitles burn-in, dynamic preview player, and MP4 downloads | Phase 5 |
 | 2026-07-12 | ✅ Phase 4.1-4.4 completed — integrated Google TTS audio generation proxy route `/api/tts/generate` with client side audio playing preview buttons | Phase 4 |

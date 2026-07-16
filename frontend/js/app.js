@@ -9,6 +9,7 @@ const PROVIDERS = {
   openai:    { note: 'sk-...',           models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo', 'o1-mini'] },
   gemini:    { note: 'AIza...',          models: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.5-pro'] },
   openrouter:{ note: 'sk-or-v1-...',     models: ['openai/gpt-4o', 'anthropic/claude-sonnet-4-5', 'google/gemini-2.0-flash-exp:free', 'deepseek/deepseek-chat', 'meta-llama/llama-3.3-70b-instruct:free', 'mistralai/mistral-7b-instruct:free'] },
+  weizerouter:{ note: 'wzr_live_...',    models: ['wz/gpt-5.5'] },
   groq:      { note: 'gsk_...',          models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'] },
   deepseek:  { note: 'sk-...',           models: ['deepseek-chat', 'deepseek-reasoner'] },
   mistral:   { note: '...',              models: ['mistral-large-latest', 'mistral-small-latest', 'open-mistral-7b'] },
@@ -28,6 +29,7 @@ let currentProvider = 'anthropic';
 let selectedGenres  = ['ASMR Satisfying'];
 let currentJSON     = null;
 let useBackend      = false;
+let backendBase      = '';
 // Per-scene image cache: { sceneIdx: dataURL }
 let sceneImages     = {};
 let styleLockSeed   = null;
@@ -683,22 +685,27 @@ function clearHistory() {
 
 // ─── BACKEND DETECTION ────────────────────────────────────────
 async function detectBackend() {
-  try {
-    const res = await fetch('/api/health', { signal: AbortSignal.timeout(2000) });
-    if (res.ok) {
-      useBackend = true;
-      document.getElementById('verBadge').innerHTML = '<span class="conn-dot ok"></span>v3.3 — BACKEND CONNECTED';
-    }
-  } catch {
-    useBackend = false;
-    document.getElementById('verBadge').innerHTML = '<span class="conn-dot err"></span>v3.3 — DIRECT MODE';
+  const healthPaths = ['/api/health', '/storyboard-api/health'];
+  for (const healthPath of healthPaths) {
+    try {
+      const res = await fetch(healthPath, { signal: AbortSignal.timeout(2500) });
+      if (res.ok) {
+        useBackend = true;
+        backendBase = healthPath.replace(/\/health$/, '');
+        document.getElementById('verBadge').innerHTML = '<span class="conn-dot ok"></span>v3.5.2 — BACKEND CONNECTED';
+        return;
+      }
+    } catch {}
   }
+  useBackend = false;
+  backendBase = '';
+  document.getElementById('verBadge').innerHTML = '<span class="conn-dot err"></span>v3.5.2 — DIRECT MODE';
 }
 
 // ─── LLM API CALL (Proxy or Direct) ──────────────────────────
 async function callAPI(apiKey, model, prompt) {
   if (useBackend) {
-    const res = await fetch('/api/llm/generate', {
+    const res = await fetch(`${backendBase}/llm/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -738,6 +745,7 @@ async function callAPI(apiKey, model, prompt) {
   const ENDPOINTS = {
     openai: 'https://api.openai.com/v1/chat/completions',
     openrouter: 'https://openrouter.ai/api/v1/chat/completions',
+    weizerouter: 'https://weizerouter.web.id/v1/chat/completions',
     groq: 'https://api.groq.com/openai/v1/chat/completions',
     deepseek: 'https://api.deepseek.com/v1/chat/completions',
     mistral: 'https://api.mistral.ai/v1/chat/completions'
@@ -836,6 +844,7 @@ document.addEventListener('keydown', (e) => {
   const prefs = loadPreferences();
   if (prefs) {
     if (prefs.provider && PROVIDERS[prefs.provider]) setProvider(prefs.provider);
+    else setProvider('anthropic');
     if (prefs.model) {
       const ms = document.getElementById('model');
       for (const opt of ms.options) { if (opt.value === prefs.model) { ms.value = prefs.model; break; } }
@@ -855,5 +864,5 @@ document.addEventListener('keydown', (e) => {
   }
 
   renderHistory();
-  console.log('[StoryBOARD] ✅ Initialized — v3.3 (Phase 3 ready)');
+  console.log('[StoryBOARD] ✅ Initialized — v3.5.2 (WeizeRouter ready)');
 })();

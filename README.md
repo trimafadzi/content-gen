@@ -75,7 +75,7 @@ content-gen/
 |---|---|
 | Frontend | HTML, CSS (Neobrutalism), Vanilla JS |
 | Fonts | Space Grotesk, IBM Plex Mono |
-| AI Providers | Anthropic, OpenAI, Gemini, OpenRouter, Groq, DeepSeek, Mistral |
+| AI Providers | Anthropic, OpenAI, Gemini, OpenRouter, WeizeRouter (`wz/gpt-5.5`), Groq, DeepSeek, Mistral |
 | Backend | Node.js + Express |
 | Audio/TTS | google-tts-api |
 | Video (planned) | FFmpeg |
@@ -84,6 +84,6 @@ content-gen/
 
 ## 📊 Current Status
 
-**Version**: v3.4.0  
-**Overall Progress**: 66% (38/57 tasks completed)  
-**Current Phase**: Phase 5 — Video Assembly & Export
+**Version**: v3.5.2
+**Overall Progress**: 100% MVP + provider maintenance
+**Current Phase**: MVP complete — provider maintenance
