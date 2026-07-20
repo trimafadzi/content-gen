@@ -223,13 +223,56 @@ function switchTab(tab) {
 }
 
 // ─── COPY & DOWNLOAD JSON ─────────────────────────────────────
-function copyJSON() {
-  if (!currentJSON) return;
-  navigator.clipboard.writeText(JSON.stringify(currentJSON, null, 2));
+async function copyJSON() {
+  if (!currentJSON) { showToast('⚠️ Belum ada JSON untuk dicopy!'); return; }
+
+  const jsonText = JSON.stringify(currentJSON, null, 2);
   const btn = document.querySelector('.copy-btn');
-  btn.textContent = 'Copied!';
-  showToast('📋 JSON copied!');
-  setTimeout(() => btn.textContent = 'Copy JSON', 1500);
+
+  // Helper: ubah tampilan tombol sementara
+  function flashBtn(text, dur = 1800) {
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = text;
+    btn.disabled = true;
+    setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, dur);
+  }
+
+  // Coba Clipboard API modern (HTTPS / localhost)
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(jsonText);
+      flashBtn('✅ Copied!');
+      showToast('📋 JSON copied to clipboard!');
+      return;
+    } catch (err) {
+      console.warn('[copyJSON] Clipboard API gagal, mencoba fallback...', err);
+    }
+  }
+
+  // Fallback: textarea + execCommand (HTTP / browser lama)
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = jsonText;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length); // iOS support
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (ok) {
+      flashBtn('✅ Copied!');
+      showToast('📋 JSON copied to clipboard!');
+    } else {
+      throw new Error('execCommand copy returned false');
+    }
+  } catch (fallbackErr) {
+    console.error('[copyJSON] Semua metode copy gagal:', fallbackErr);
+    flashBtn('❌ Gagal!', 2000);
+    showToast('❌ Copy gagal. Coba Ctrl+A lalu Ctrl+C di JSON view.');
+  }
 }
 function downloadJSON() {
   if (!currentJSON) return;
@@ -241,6 +284,18 @@ function downloadJSON() {
   a.click();
   URL.revokeObjectURL(url);
   showToast('📥 JSON downloaded!');
+}
+
+// Pilih semua teks di JSON view (fallback manual Ctrl+C)
+function selectAllJSON() {
+  const pre = document.getElementById('jp');
+  if (!pre) return;
+  const range = document.createRange();
+  range.selectNodeContents(pre);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  showToast('✅ Semua teks terpilih — tekan Ctrl+C / Cmd+C untuk copy!');
 }
 
 // ─── EXPORT PDF ───────────────────────────────────────────────
