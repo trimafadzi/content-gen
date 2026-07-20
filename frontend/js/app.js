@@ -818,6 +818,387 @@ Return ONLY valid JSON, no markdown fences, no explanation:
   }
 }
 
+// ─── EXPORT AS IMAGE ──────────────────────────────────────────
+
+function buildExportCard(data) {
+  const scenes = data.scenes || [];
+  const genre  = data.genre  || selectedGenres.join(', ');
+  const platform = data.platform || 'Shorts / TikTok / Reels';
+
+  // ── Hero image: pakai gambar scene pertama jika ada ──────────
+  const heroImgSrc = sceneImages[0] || null;
+  const heroHTML = heroImgSrc
+    ? `<img src="${heroImgSrc}" alt="Hero"/>`
+    : `<div class="ec-hero-placeholder">🎬</div>`;
+
+  // ── Metadata sidebar ──────────────────────────────────────────
+  const metaItems = [
+    { icon: '⏱', label: 'Durasi Total', value: data.duration_total || '—' },
+    { icon: '🎬', label: 'Jumlah Scene', value: `${scenes.length} Scene` },
+    { icon: '📐', label: 'Rasio', value: data.aspect_ratio || '9:16' },
+    { icon: '🎵', label: 'Genre', value: genre },
+    { icon: '😊', label: 'Vibe', value: data.visual_style ? data.visual_style.split(' ').slice(0,2).join(' ') : 'Satisfying' },
+    { icon: '▶', label: 'Platform', value: platform },
+  ];
+  const metaHTML = metaItems.map((m, i) => `
+    <div class="ec-meta-item">
+      <div class="ec-meta-icon-row">
+        <span class="ec-meta-icon">${m.icon}</span>
+        <span class="ec-meta-label">${m.label}</span>
+      </div>
+      <div class="ec-meta-value">${m.value}</div>
+    </div>
+    ${i < metaItems.length - 1 ? '<div class="ec-meta-divider"></div>' : ''}
+  `).join('');
+
+  // ── Scene cards ───────────────────────────────────────────────
+  const regularScenes = scenes.slice(0, 6); // max 6 scene di grid
+  const bonusTips = data.tips || [];
+
+  function makeSceneCard(scene, idx, isBonus = false) {
+    const imgSrc = sceneImages[idx] || null;
+    const imgHTML = imgSrc
+      ? `<img src="${imgSrc}" alt="Scene ${idx+1}"/>`
+      : `<div class="ec-scene-img-placeholder">
+           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#555">
+             <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+           </svg>
+         </div>`;
+
+    const fields = [
+      scene.visual  ? { lbl: 'VISUAL', val: scene.visual } : null,
+      scene.camera  ? { lbl: 'CAMERA', val: scene.camera } : null,
+      scene.sfx     ? { lbl: 'SFX', val: scene.sfx } : null,
+      scene.micro_action ? { lbl: 'AKSI MINI', val: scene.micro_action } : null,
+    ].filter(Boolean);
+
+    const sceneNumLabel = isBonus ? '★' : (idx + 1);
+    const cardClass = isBonus ? 'ec-scene-card bonus' : 'ec-scene-card';
+    const titleClass = isBonus ? 'ec-scene-title ec-scene-bonus-title' : 'ec-scene-title';
+    const titleText  = isBonus ? 'BONUS SHOT (OPSIONAL)' : (scene.visual || '').split(' ').slice(0, 4).join(' ').toUpperCase() || `SCENE ${idx + 1}`;
+
+    return `
+      <div class="${cardClass}">
+        <div class="ec-scene-img-wrap">
+          ${imgHTML}
+          <div class="ec-scene-num">${sceneNumLabel}</div>
+          ${scene.timing ? `<div class="ec-timecode">${scene.timing}</div>` : ''}
+        </div>
+        <div class="ec-scene-body">
+          <div class="${titleClass}">${titleText}</div>
+          ${fields.map(f => `
+            <div class="ec-field">
+              <span class="ec-field-lbl">${f.lbl}:</span>
+              <span class="ec-field-val">${f.val}</span>
+            </div>
+          `).join('')}
+          ${scene.narration && scene.narration !== 'null'
+            ? `<div class="ec-field">
+                 <span class="ec-field-lbl">NARASI:</span>
+                 <span class="ec-field-val ec-narr-val">"${scene.narration}"</span>
+               </div>`
+            : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  // Buat scene grid — pasangkan scene terakhir dengan bonus card jika ganjil
+  let sceneCardsHTML = regularScenes.map((s, i) => makeSceneCard(s, i)).join('');
+  // Jika jumlah scene ganjil → tambah bonus card sebagai pasangan
+  if (regularScenes.length % 2 !== 0) {
+    sceneCardsHTML += makeSceneCard({ visual: 'Tampilkan dari berbagai sudut.', camera: 'Macro cinematic sweep.', sfx: 'Ambience dapur Jepang, suara alat mini.', micro_action: 'Pekerja membereskan alat, foto bersama.' }, -1, true);
+  }
+
+  // ── Tips section ─────────────────────────────────────────────
+  const tipsHTML = bonusTips.length > 0
+    ? bonusTips.map(t => `
+        <div class="ec-tip-item">
+          <span class="ec-tip-check">✓</span>
+          <span>${t}</span>
+        </div>
+      `).join('')
+    : '<div class="ec-tip-item"><span class="ec-tip-check">✓</span><span>Generate storyboard untuk melihat tips creator.</span></div>';
+
+  // ── Footer bar ────────────────────────────────────────────────
+  const footerItems = [
+    { icon: '⏱', lbl: 'Durasi Total', val: data.duration_total || '—' },
+    { icon: '🎬', lbl: 'Jumlah Scene', val: `${scenes.length} Scene` },
+    { icon: '😊', lbl: 'Vibe', val: 'Satisfying' },
+    { icon: '🎵', lbl: 'Genre', val: genre },
+    { icon: '📐', lbl: 'Rasio', val: data.aspect_ratio || '9:16' },
+    { icon: '▶', lbl: 'Platform', val: platform },
+  ];
+
+  // ── Header badges ─────────────────────────────────────────────
+  const dur = data.duration_total || '';
+  const sceneCountBadge = `${scenes.length} SCENE`;
+
+  // ── Subtitle dari genre/concept ───────────────────────────────
+  const conceptLine = data.concept || '';
+  const titleDisplay = (data.title || 'STORYBOARD').toUpperCase();
+
+  return `
+    <!-- HEADER -->
+    <div class="ec-header">
+      <div class="ec-header-left">
+        <div class="ec-brand">STORYBOARD</div>
+        <div class="ec-category">${genre.toUpperCase()}</div>
+        <div class="ec-subtitle">${conceptLine || platform}</div>
+        <div class="ec-title-big">${titleDisplay}</div>
+        <div class="ec-badges">
+          <div class="ec-badge filled">${genre.toUpperCase()}</div>
+          <div class="ec-badge">${dur} • ${sceneCountBadge}</div>
+        </div>
+      </div>
+      <div class="ec-hero-image">
+        ${heroHTML}
+        <div class="ec-hero-gradient"></div>
+      </div>
+      <div class="ec-meta-sidebar">
+        ${metaHTML}
+      </div>
+    </div>
+
+    <!-- SCENE GRID -->
+    <div class="ec-scenes-grid">
+      ${sceneCardsHTML}
+    </div>
+
+    <!-- TIPS SECTION -->
+    ${bonusTips.length > 0 ? `
+    <div class="ec-tips">
+      <div class="ec-tips-title">TIPS CREATOR</div>
+      <div class="ec-tips-grid">
+        ${tipsHTML}
+      </div>
+    </div>` : ''}
+
+    <!-- FOOTER BAR -->
+    <div class="ec-footer">
+      ${footerItems.map(f => `
+        <div class="ec-footer-item">
+          <span class="ec-footer-icon">${f.icon}</span>
+          <div>
+            <div class="ec-footer-lbl">${f.lbl}</div>
+            <div class="ec-footer-val">${f.val}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+async function exportAsImage() {
+  if (!currentJSON) { showToast('⚠️ Belum ada storyboard untuk diexport!'); return; }
+
+  const btn = document.getElementById('exportImgBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Rendering...';
+
+  // Tampilkan loading overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'export-loading-overlay';
+  overlay.id = 'exportLoadingOverlay';
+  overlay.innerHTML = `
+    <div class="export-loading-box">
+      <div class="export-loading-icon">📸</div>
+      <div class="export-loading-text">Rendering storyboard image...</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  try {
+    // Populate export card
+    const card = document.getElementById('exportCard');
+    card.innerHTML = buildExportCard(currentJSON);
+
+    // Pindah ke posisi visible sementara (di luar viewport)
+    card.style.position = 'fixed';
+    card.style.left = '-9999px';
+    card.style.top = '0';
+    card.style.zIndex = '-1';
+
+    // Tunggu images load
+    await new Promise(r => setTimeout(r, 300));
+
+    // Capture dengan html2canvas
+    const canvas = await html2canvas(card, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#0D0D0D',
+      logging: false,
+      width: 900,
+      height: card.scrollHeight,
+    });
+
+    // Convert ke PNG blob dan download
+    canvas.toBlob((blob) => {
+      if (!blob) { showToast('❌ Gagal generate image!'); return; }
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      const title = (currentJSON.title || 'storyboard')
+        .toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+      a.href     = url;
+      a.download = `storyboard_${title}_${Date.now()}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('📸 Storyboard image downloaded!');
+    }, 'image/png');
+
+  } catch (err) {
+    console.error('[Export Image]', err);
+    showToast(`❌ Export gagal: ${err.message}`);
+  } finally {
+    document.getElementById('exportLoadingOverlay')?.remove();
+    btn.disabled = false;
+    btn.textContent = '📸 Export Image';
+  }
+}
+
+// ─── SETTINGS PANEL ──────────────────────────────────────────
+
+// Config semua LLM providers untuk settings grid
+const SETTINGS_LLM_PROVIDERS = [
+  { key: 'anthropic',   label: 'Anthropic',    note: 'sk-ant-api03-...' },
+  { key: 'openai',      label: 'OpenAI',       note: 'sk-...' },
+  { key: 'gemini',      label: 'Gemini',       note: 'AIza...' },
+  { key: 'openrouter',  label: 'OpenRouter',   note: 'sk-or-v1-...' },
+  { key: 'weizerouter', label: 'WeizeRouter',  note: 'wzr_live_...' },
+  { key: 'groq',        label: 'Groq',         note: 'gsk_...' },
+  { key: 'deepseek',    label: 'DeepSeek',     note: 'sk-...' },
+  { key: 'mistral',     label: 'Mistral',      note: '...' },
+  { key: 'custom',      label: 'Custom API',   note: 'Your API key' },
+];
+
+// Config image providers untuk settings grid
+const SETTINGS_IMG_PROVIDERS = [
+  { key: 'img_openai',     label: 'OpenAI (DALL-E)',    note: 'sk-... (sama seperti OpenAI)' },
+  { key: 'img_stability',  label: 'Stability AI',       note: 'sk-... (stability.ai)' },
+  { key: 'img_together',   label: 'Together AI',        note: 'together.ai key' },
+  { key: 'img_weizerouter',label: 'WeizeRouter Images', note: 'wzr_live_... (sama seperti WeizeRouter)' },
+];
+
+function buildSettingsGrid(containerId, providers) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = providers.map(({ key, label, note }) => {
+    const saved = loadApiKey(key);
+    const hasSaved = !!saved;
+    return `
+      <div class="settings-item">
+        <div class="settings-item-label">
+          <span class="key-saved-dot ${hasSaved ? 'saved' : ''}" id="dot_${key}"></span>
+          ${label}
+        </div>
+        <div class="key-input-wrap">
+          <input
+            type="password"
+            id="skey_${key}"
+            placeholder="${note}"
+            value="${saved}"
+            autocomplete="new-password"
+            oninput="updateDot('${key}')"
+          />
+          <button class="key-toggle-btn" onclick="toggleKeyVisibility('skey_${key}', this)" title="Show/Hide">👁</button>
+        </div>
+        <div class="settings-note">${note}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openSettings() {
+  buildSettingsGrid('settingsLLMGrid', SETTINGS_LLM_PROVIDERS);
+  buildSettingsGrid('settingsImgGrid', SETTINGS_IMG_PROVIDERS);
+  document.getElementById('settingsOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('settingsOverlay')) closeSettings();
+}
+
+function toggleKeyVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isPassword = input.type === 'password';
+  input.type = isPassword ? 'text' : 'password';
+  btn.textContent = isPassword ? '🙈' : '👁';
+}
+
+function updateDot(providerKey) {
+  const input = document.getElementById(`skey_${providerKey}`);
+  const dot   = document.getElementById(`dot_${providerKey}`);
+  if (!input || !dot) return;
+  dot.classList.toggle('saved', !!input.value.trim());
+}
+
+function saveAllKeys() {
+  const allProviders = [...SETTINGS_LLM_PROVIDERS, ...SETTINGS_IMG_PROVIDERS];
+  let savedCount = 0;
+  allProviders.forEach(({ key }) => {
+    const input = document.getElementById(`skey_${key}`);
+    if (!input) return;
+    const val = input.value.trim();
+    if (val) {
+      saveApiKey(key, val);
+      savedCount++;
+    } else {
+      // Hapus key jika dikosongkan
+      const keys = loadFromStorage(STORAGE.API_KEYS, {});
+      delete keys[key];
+      saveToStorage(STORAGE.API_KEYS, keys);
+    }
+  });
+  // Refresh input API key di sidebar sesuai provider aktif
+  document.getElementById('apikey').value = loadApiKey(currentProvider);
+  updateSettingsKeyBadge();
+  closeSettings();
+  showToast(`✅ ${savedCount} API key tersimpan!`);
+}
+
+function clearAllKeys() {
+  if (!confirm('Hapus semua API key yang tersimpan?')) return;
+  saveToStorage(STORAGE.API_KEYS, {});
+  document.getElementById('apikey').value = '';
+  updateSettingsKeyBadge();
+  // Refresh dots jika modal masih terbuka
+  [...SETTINGS_LLM_PROVIDERS, ...SETTINGS_IMG_PROVIDERS].forEach(({ key }) => {
+    const dot = document.getElementById(`dot_${key}`);
+    const input = document.getElementById(`skey_${key}`);
+    if (dot) dot.classList.remove('saved');
+    if (input) input.value = '';
+  });
+  showToast('🗑️ Semua API key dihapus!');
+}
+
+function updateSettingsKeyBadge() {
+  const keys = loadFromStorage(STORAGE.API_KEYS, {});
+  const count = Object.values(keys).filter(v => !!v).length;
+  const badge = document.getElementById('settingsKeyCount');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = `${count} KEY${count > 1 ? 'S' : ''}`;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ESC key menutup settings modal
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('settingsOverlay').classList.contains('open')) {
+    closeSettings();
+  }
+});
+
 // ─── AUTO-SAVE LISTENERS ──────────────────────────────────────
 document.getElementById('apikey').addEventListener('change', () => {
   const key = document.getElementById('apikey').value.trim();
@@ -865,5 +1246,6 @@ document.addEventListener('keydown', (e) => {
   }
 
   renderHistory();
+  updateSettingsKeyBadge();
   console.log('[StoryBOARD] ✅ Initialized — v3.5.2 (WeizeRouter ready)');
 })();

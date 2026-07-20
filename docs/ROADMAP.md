@@ -3,18 +3,18 @@
 
 | Field | Detail |
 |---|---|
-| **Last Updated** | 2026-07-12 |
-| **Current Phase** | Phase 4 ✅ → Phase 5 🔄 |
+| **Last Updated** | 2026-07-20 |
+| **Current Phase** | Phase 6 ✅ Done |
 
 ---
 
 ## Overview
 
 ```
-Phase 1          Phase 2          Phase 3          Phase 4          Phase 5
-Storyboard  →  Bug Fix &    →  Visual Gen   →  Audio/TTS    →  Video Assembly
-Generator       UX Polish       per Scene       Pipeline        & Export
-  ✅ Done       ✅ Done         ✅ Done         ✅ Done         🔄 Next
+Phase 1          Phase 2          Phase 3          Phase 4          Phase 5          Phase 6
+Storyboard  →  Bug Fix &    →  Visual Gen   →  Audio/TTS    →  Video        →  Settings &
+Generator       UX Polish       per Scene       Pipeline        Assembly        Export Image
+  ✅ Done       ✅ Done         ✅ Done         ✅ Done         ✅ Done         ✅ Done
 ```
 
 ---
@@ -123,18 +123,40 @@ Generator       UX Polish       per Scene       Pipeline        & Export
 
 | Task | Priority | Status |
 |---|---|---|
-| FFmpeg installation & wrapper service | P0 | 🔄 |
-| Backend route `/api/video/assemble` | P0 | 🔄 |
-| Scene image → video frame conversion | P0 | 🔄 |
-| Audio overlay (narration + BGM) | P0 | 🔄 |
+| FFmpeg installation & wrapper service | P0 | ✅ |
+| Backend route `/api/video/assemble` | P0 | ✅ |
+| Scene image → video frame conversion | P0 | ✅ |
+| Audio overlay (narration + BGM) | P0 | ✅ |
 | Scene transitions (fade, cut, zoom) | P1 | 🔴 |
-| Text overlay / subtitle burn-in | P1 | 🔴 |
-| Video preview player | P0 | 🔄 |
-| MP4 download (720p / 1080p) | P0 | 🔄 |
-| Progress indicator | P1 | 🔄 |
+| Text overlay / subtitle burn-in | P1 | ✅ |
+| Video preview player | P0 | ✅ |
+| MP4 download (720p / 1080p) | P0 | ✅ |
+| Progress indicator | P1 | ✅ |
 | Timeline drag & drop editor | P2 | 🔴 |
 | Batch generation mode | P2 | 🔴 |
 | Watermark / branding | P2 | 🔴 |
+
+---
+
+## Phase 6: Settings Panel & Export as Image ✅ DONE
+
+**Goal**: Persistent API key management dan export storyboard sebagai gambar PNG profesional
+
+| Task | Priority | Status |
+|---|---|---|
+| Settings button di sidebar | P0 | ✅ |
+| Settings modal dengan grid semua provider | P0 | ✅ |
+| Toggle show/hide per API key | P1 | ✅ |
+| Dot indikator key tersimpan | P1 | ✅ |
+| Save All Keys / Clear All Keys | P0 | ✅ |
+| Badge count di tombol settings | P1 | ✅ |
+| Dokumentasi `SETTINGS_FEATURE.md` | P1 | ✅ |
+| Export storyboard as PNG (html2canvas) | P0 | ✅ |
+| Dark card export template (header + scene grid + tips + footer) | P0 | ✅ |
+| Hero image di export header | P1 | ✅ |
+| Metadata sidebar di export header | P1 | ✅ |
+| Loading overlay saat render | P1 | ✅ |
+| Auto-download PNG dengan nama file dinamis | P0 | ✅ |
 
 ---
 
@@ -152,7 +174,10 @@ Phase 3 (Images)   Phase 4 (Audio)   [Done]
     │                  │
     └────────┬─────────┘
              ▼
-        Phase 5 (Video Assembly)     [Next]
+        Phase 5 (Video Assembly)     [Done]
+             │
+             ▼
+        Phase 6 (Settings + Export)  [Done]
 ```
 
 ---
@@ -167,3 +192,6 @@ Phase 3 (Images)   Phase 4 (Audio)   [Done]
 | 2026-07-12 | Keep vanilla JS for frontend (no framework) | Minimize complexity for MVP, reconsider at Phase 5 |
 | 2026-07-12 | Use Node.js + Express for backend | Lightweight, same language as frontend |
 | 2026-07-12 | FFmpeg for video assembly | Industry standard, open source |
+| 2026-07-20 | Settings Panel menggunakan modal overlay bukan dedicated page | Lebih cepat diakses, tidak mengganggu main workflow |
+| 2026-07-20 | html2canvas untuk Export as Image (frontend-only) | Tidak butuh backend baru, library ringan via CDN |
+| 2026-07-20 | Export card menggunakan hidden div yang di-capture html2canvas | Memungkinkan desain template terpisah dari UI utama tanpa konflik style |

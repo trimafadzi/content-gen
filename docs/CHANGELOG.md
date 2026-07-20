@@ -16,6 +16,23 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.6.0] — 2026-07-20
+
+### Added
+- ✨ **Settings Panel — Persistent API Key Manager**: Tombol ⚙ API Key Settings di sidebar kiri membuka modal yang berisi input API key untuk semua provider (9 LLM + 4 Image providers) sekaligus, disimpan ke `localStorage`.
+- ✨ **Settings Modal UX**: Toggle show/hide per key (👁/🙈), indikator dot hijau jika key sudah tersimpan, badge count di tombol Settings.
+- ✨ **Save All Keys / Clear All**: Tombol simpan semua key sekaligus atau hapus semua key dengan konfirmasi.
+- ✨ **Export Storyboard as Image (PNG)**: Tombol 📸 Export Image di tab bar mengekspor storyboard ke gambar PNG berformat dark storyboard card — header judul besar + hero image, metadata sidebar, 2-kolom grid scene dengan image/timecode/fields, Tips Creator section, dan footer metadata bar.
+- ✨ **html2canvas Integration**: Menggunakan library `html2canvas@1.4.1` (CDN) untuk capture hidden export card div ke canvas lalu download sebagai PNG.
+- ✨ **Dark Card Export Template**: Template CSS khusus untuk export card (`#exportCard`) dengan dark background `#0D0D0D`, yellow accent `#FFE500`, orange scene badges `#FF6B35`, tipografi Space Grotesk + IBM Plex Mono.
+- ✨ **Loading Overlay saat Export**: Overlay animasi saat html2canvas sedang render.
+- 📝 Dokumentasi `docs/SETTINGS_FEATURE.md` — step-by-step penggunaan Settings Panel.
+
+### Fixed
+- 🐛 API key di sidebar kini otomatis terisi dari Settings setelah `saveAllKeys()` dipanggil.
+- 🐛 Export PDF dan Export Image sekarang tersedia bersamaan di tab bar (bukan saling mengganti).
+
+---
 
 ## [3.5.3] — 2026-07-16
 

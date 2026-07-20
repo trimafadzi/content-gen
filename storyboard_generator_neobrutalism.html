@@ -13,6 +13,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
 <!-- Link to extracted external stylesheet (Phase 2.4 / Phase 3) -->
 <link rel="stylesheet" href="frontend/css/style.css"/>
+<!-- html2canvas for Export as Image feature -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -112,6 +114,11 @@
 
     <button class="gen-btn" id="gb" onclick="gen()">▶ Generate Storyboard</button>
 
+    <button class="settings-btn" id="settingsBtn" onclick="openSettings()">
+      <span class="settings-btn-left">⚙ API Key Settings</span>
+      <span class="settings-key-badge" id="settingsKeyCount" style="display:none">0 KEYS</span>
+    </button>
+
     <div class="history-wrap">
       <div class="history-title">
         <span>📂 History</span>
@@ -162,7 +169,10 @@
           <button class="tab" onclick="switchTab('j')">JSON</button>
           <button class="tab" onclick="switchTab('t')">Tips</button>
         </div>
-        <button class="dl-btn" onclick="exportPDF()" style="font-size:11px;">🖨️ Export PDF</button>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="dl-btn" id="exportImgBtn" onclick="exportAsImage()" style="font-size:11px;background:var(--black);color:var(--yellow);border-color:var(--black);box-shadow:3px 3px 0 #555;">📸 Export Image</button>
+          <button class="dl-btn" onclick="exportPDF()" style="font-size:11px;">🖨️ Export PDF</button>
+        </div>
       </div>
 
       <div id="scenesView"></div>
@@ -179,6 +189,40 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- HIDDEN EXPORT CARD (captured by html2canvas) -->
+<div id="exportCard" style="position:fixed;left:-9999px;top:0;z-index:-1;pointer-events:none;">
+  <!-- Populated by buildExportCard() in app.js -->
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="settings-overlay" id="settingsOverlay" onclick="handleOverlayClick(event)">
+  <div class="settings-panel" id="settingsPanel">
+    <div class="settings-header">
+      <div class="settings-title">⚙ API Key Settings</div>
+      <button class="settings-close" onclick="closeSettings()">✕ Close</button>
+    </div>
+
+    <div class="settings-body">
+      <p style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#666;margin-bottom:16px;line-height:1.6;">API key disimpan di browser (localStorage). Tidak pernah dikirim ke server lain selain provider yang kamu pilih.</p>
+
+      <div class="settings-section-label">🤖 LLM Providers</div>
+      <div class="settings-grid" id="settingsLLMGrid">
+        <!-- Dinamis diisi JS -->
+      </div>
+
+      <div class="settings-section-label">🎨 Image Providers</div>
+      <div class="settings-grid" id="settingsImgGrid">
+        <!-- Dinamis diisi JS -->
+      </div>
+    </div>
+
+    <div class="settings-footer">
+      <button class="settings-save-btn" onclick="saveAllKeys()">💾 Save All Keys</button>
+      <button class="settings-clear-btn" onclick="clearAllKeys()">🗑 Clear All</button>
+    </div>
+  </div>
+</div>
 
 <!-- Load external modular JavaScript (Phase 2.4 / Phase 3) -->
 <script src="frontend/js/app.js?v=3.5.2-weizerouter"></script>

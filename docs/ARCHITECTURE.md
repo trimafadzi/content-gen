@@ -3,8 +3,8 @@
 
 | Field | Detail |
 |---|---|
-| **Last Updated** | 2026-07-15 |
-| **Status** | Draft |
+| **Last Updated** | 2026-07-20 |
+| **Status** | Production |
 
 ---
 
@@ -52,12 +52,14 @@
 
 ---
 
-## 2. Current Architecture (v3.5.2)
+## 2. Current Architecture (v3.6.0)
 
 ### Stack
 - **Frontend**: HTML entrypoint (`storyboard_generator_neobrutalism.html`), modularized CSS (`frontend/css/style.css`), and modularized vanilla JS (`frontend/js/app.js`).
 - **Backend**: Node.js + Express proxy server (running on port 3456) serving proxy endpoints for LLM (CORS-bypass), Image Generation, and TTS Narration.
 - **LLM Providers**: Anthropic, OpenAI, Gemini, OpenRouter, WeizeRouter (`weizerouter` → `wz/gpt-5.5` via `https://weizerouter.web.id/v1/chat/completions`), Groq, DeepSeek, Mistral, and Custom OpenAI-compatible endpoints.
+- **Image Export**: `html2canvas@1.4.1` (CDN) — captures hidden `#exportCard` div to canvas, downloads as PNG.
+- **Settings Panel**: Modal overlay dengan grid input API key untuk 9 LLM + 4 Image providers, disimpan ke `localStorage`.
 - **Audio/TTS**: Google Translate TTS integration with local MD5-hashed caching.
 - **Visuals**: Pollinations AI (free), DALL-E, Stability, and Together AI (Flux) integration with Style presets and Style Lock.
 - **State Management**: localStorage (keys, preferences) + in-memory state.
