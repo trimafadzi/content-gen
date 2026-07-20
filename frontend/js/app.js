@@ -694,6 +694,9 @@ async function detectBackend() {
         useBackend = true;
         backendBase = healthPath.replace(/\/health$/, '');
         document.getElementById('verBadge').innerHTML = '<span class="conn-dot ok"></span>v3.5.2 — BACKEND CONNECTED';
+        // Sembunyikan tombol Connect saat berhasil terhubung
+        const connectBtn = document.getElementById('connectBtn');
+        if (connectBtn) connectBtn.style.display = 'none';
         return;
       }
     } catch {}
@@ -701,6 +704,30 @@ async function detectBackend() {
   useBackend = false;
   backendBase = '';
   document.getElementById('verBadge').innerHTML = '<span class="conn-dot err"></span>v3.5.2 — DIRECT MODE';
+  // Tampilkan tombol Connect saat backend tidak tersedia
+  const connectBtn = document.getElementById('connectBtn');
+  if (connectBtn) connectBtn.style.display = 'inline-flex';
+}
+
+// ─── RECONNECT BACKEND ────────────────────────────────────────
+async function reconnectBackend() {
+  const btn = document.getElementById('connectBtn');
+  const badge = document.getElementById('verBadge');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Connecting...';
+  }
+  if (badge) badge.innerHTML = '<span class="conn-dot" style="background:#f59e0b;animation:pulse 1s infinite"></span>v3.5.2 — CONNECTING...';
+  await detectBackend();
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = '⚡ Connect';
+  }
+  if (useBackend) {
+    showToast('✅ Backend berhasil terhubung!');
+  } else {
+    showToast('❌ Backend tidak ditemukan. Jalankan server terlebih dahulu.');
+  }
 }
 
 // ─── LLM API CALL (Proxy or Direct) ──────────────────────────

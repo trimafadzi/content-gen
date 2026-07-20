@@ -3,7 +3,7 @@
 
 | Field | Detail |
 |---|---|
-| **Last Updated** | 2026-07-15 |
+| **Last Updated** | 2026-07-20 |
 | **Current Phase** | Phase 5 — Video Assembly (✅ Completed) |
 | **Overall Progress** | ██████████ 100% |
 
@@ -105,6 +105,8 @@ All core stages of the storyboard-to-video workflow are implemented, fully teste
 
 | Date | Activity | Phase |
 |---|---|---|
+| 2026-07-20 | ✅ v3.6.1 — Tambah tombol `⚡ Connect` di header yang otomatis muncul/hilang berdasarkan status koneksi backend, dengan retry logic, animasi pulse, dan toast feedback | UX Enhancement |
+| 2026-07-20 | ✅ v3.6.0 — Settings Panel (Persistent API Key Manager) + Export Storyboard as PNG via html2canvas | Phase 6 |
 | 2026-07-15 | ✅ Added WeizeRouter GPT-5.5 provider (`weizerouter`) with model `wz/gpt-5.5`, backend endpoint `https://weizerouter.web.id/v1/chat/completions`, UI provider button, and post-restart health validation | Provider maintenance |
 | 2026-07-12 | ✅ Robust JSON parsing — fixed parser errors on LLM outputs using client-side auto-repair | Refactor/Bugfix |
 | 2026-07-12 | ✅ Phase 5 completed — FFmpeg video assembler integration, custom neobrutalism subtitles burn-in, dynamic preview player, and MP4 downloads | Phase 5 |

@@ -20,7 +20,10 @@
 
 <header class="header">
   <div class="logo">Story<span>BOARD</span> GEN</div>
-  <div class="badge"><span class="mono" id="verBadge">v3.3 — MULTI-PROVIDER</span></div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="badge"><span class="mono" id="verBadge">v3.3 — MULTI-PROVIDER</span></div>
+    <button id="connectBtn" class="connect-btn" onclick="reconnectBackend()" title="Coba sambungkan ke backend server" style="display:none">⚡ Connect</button>
+  </div>
 </header>
 
 <div class="main">

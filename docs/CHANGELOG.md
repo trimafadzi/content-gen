@@ -16,6 +16,17 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [3.6.1] — 2026-07-20
+
+### Added
+- ✨ **Backend Connect Button**: Tombol `⚡ Connect` muncul di header kanan saat backend tidak tersambung (DIRECT MODE). Sekali klik → otomatis retry koneksi ke `/api/health` & `/storyboard-api/health` dengan feedback visual animasi pulse & toast notifikasi.
+- ✨ **Auto Show/Hide Connect Button**: Tombol disembunyikan otomatis saat backend berhasil terhubung, muncul kembali jika koneksi gagal.
+- ✨ **Connecting State**: Saat retry berlangsung, tombol menampilkan `⏳ Connecting...` (disabled) dan badge berubah warna amber dengan animasi pulse.
+- ✨ **Reconnect Feedback Toast**: Toast `✅ Backend berhasil terhubung!` atau `❌ Backend tidak ditemukan` setelah proses retry selesai.
+- 🎨 **Connect Button CSS**: Style neobrutalism kuning dengan animasi `connectPulse` dua detik sekali dan hover effect geser shadow.
+
+---
+
 ## [3.6.0] — 2026-07-20
 
 ### Added

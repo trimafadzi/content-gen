@@ -72,6 +72,7 @@ content-gen/
 | 4 | Audio/TTS Pipeline | ✅ Done |
 | 5 | Video Assembly & Export | ✅ Done |
 | 6 | Settings Panel + Export as Image | ✅ Done |
+| 6.1 | Backend Connect Button & UX Polish | ✅ Done |
 
 ---
 
@@ -89,7 +90,7 @@ content-gen/
 
 ---
 
-## ✨ Key Features (v3.6.0)
+## ✨ Key Features (v3.6.1)
 
 | Feature | Description |
 |---|---|
@@ -99,6 +100,7 @@ content-gen/
 | 🎬 Video Assembly | FFmpeg — scene images + audio → MP4 dengan subtitle |
 | ⚙ Settings Panel | Persistent API key manager — simpan semua key sekali, berlaku selamanya |
 | 📸 Export as Image | Ekspor storyboard ke PNG dark card profesional (html2canvas) |
+| ⚡ Connect Button | Tombol reconnect backend otomatis muncul di header saat DIRECT MODE |
 | 📂 History | Auto-simpan 20 storyboard terakhir di localStorage |
 | ✏️ Inline Edit | Klik langsung di scene card untuk edit visual, camera, SFX, narasi |
 | 🖨️ Export PDF | Print/save storyboard sebagai PDF via browser |
@@ -107,6 +109,6 @@ content-gen/
 
 ## 📊 Current Status
 
-**Version**: v3.6.0
-**Overall Progress**: MVP Complete + Settings Panel + Export as Image
+**Version**: v3.6.1
+**Overall Progress**: MVP Complete + Settings Panel + Export as Image + Backend Connect Button
 **Current Phase**: Maintenance & Feature Enhancements
