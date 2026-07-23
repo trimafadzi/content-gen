@@ -433,6 +433,132 @@ async function genImageForScene(sceneIdx) {
   }
 }
 
+async function uploadSceneImage(sceneIdx, input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  if (!useBackend) {
+    showToast('⚠️ Backend tidak aktif. Tidak dapat mengupload gambar.');
+    input.value = '';
+    return;
+  }
+
+  const card = document.querySelector(`.scene-card[data-idx="${sceneIdx}"]`);
+  if (!card) return;
+
+  const imgWrap = card.querySelector('.sc-image-wrap');
+  const loader = imgWrap.querySelector('.sc-img-loading') || (() => {
+    const d = document.createElement('div');
+    d.className = 'sc-img-loading';
+    imgWrap.appendChild(d);
+    return d;
+  })();
+  loader.innerHTML = `<span class="sp"></span>Uploading...`;
+  loader.style.display = 'flex';
+
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const res = await fetch(`${backendBase}/upload/scene-image`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error || 'Failed to upload image');
+
+    let img = imgWrap.querySelector('img');
+    const placeholder = imgWrap.querySelector('.sc-image-placeholder');
+    if (placeholder) placeholder.style.display = 'none';
+    if (!img) {
+      img = document.createElement('img');
+      imgWrap.insertBefore(img, loader);
+    }
+    img.src = result.imageUrl;
+    img.alt = `Scene ${sceneIdx + 1} visual`;
+    sceneImages[sceneIdx] = result.imageUrl;
+    
+    if (currentJSON && currentJSON.scenes[sceneIdx]) {
+      currentJSON.scenes[sceneIdx].visual_url = result.imageUrl;
+    }
+
+    showToast(`📁 Scene ${sceneIdx + 1} — Custom image uploaded!`);
+  } catch (err) {
+    showToast(`❌ Upload gagal: ${err.message}`);
+  } finally {
+    loader.style.display = 'none';
+    input.value = '';
+  }
+}
+
+async function improveScene(sceneIdx) {
+  if (!currentJSON || !currentJSON.scenes[sceneIdx]) return;
+
+  const apiKey = document.getElementById('apikey').value.trim();
+  if (!apiKey) {
+    showToast('⚠️ Masukkan API key terlebih dahulu untuk menggunakan AI!');
+    return;
+  }
+
+  const model = document.getElementById('model').value;
+  const scene = currentJSON.scenes[sceneIdx];
+
+  const card = document.querySelector(`.scene-card[data-idx="${sceneIdx}"]`);
+  if (!card) return;
+
+  const imgWrap = card.querySelector('.sc-image-wrap');
+  const loader = imgWrap.querySelector('.sc-img-loading') || (() => {
+    const d = document.createElement('div');
+    d.className = 'sc-img-loading';
+    imgWrap.appendChild(d);
+    return d;
+  })();
+  loader.innerHTML = `<span class="sp"></span>Improving scene...`;
+  loader.style.display = 'flex';
+
+  const prompt = `You are a viral short-form video storyboard expert.
+Given this storyboard context:
+Title: ${currentJSON.title}
+Platform: ${currentJSON.platform}
+Genre: ${currentJSON.genre}
+Visual Style: ${currentJSON.visual_style}
+
+Here is Scene ${sceneIdx + 1} that needs improvement:
+${JSON.stringify(scene, null, 2)}
+
+Improve this scene's visual description, camera movement, sfx, narration, and micro action to make it more engaging, dramatic, and viral.
+Ensure the output JSON structure has EXACTLY the same keys as the input scene object.
+Return ONLY valid JSON for this single scene object, no markdown codeblocks, no explanations:`;
+
+  try {
+    const raw = await callAPI(apiKey, model, prompt);
+    const clean = raw.replace(/```json|```/g, '').trim();
+    
+    // Attempt json repair using helper
+    const improvedScene = repairJSON(clean) ? JSON.parse(repairJSON(clean)) : JSON.parse(clean);
+    
+    // Merge back, preserving timing, scene_num, visual_url, and audioUrl
+    improvedScene.scene_num = scene.scene_num;
+    improvedScene.timing = scene.timing;
+    if (scene.visual_url) improvedScene.visual_url = scene.visual_url;
+    if (scene.audioUrl) improvedScene.audioUrl = scene.audioUrl;
+    
+    currentJSON.scenes[sceneIdx] = improvedScene;
+    
+    document.getElementById('jp').textContent = JSON.stringify(currentJSON, null, 2);
+    render(currentJSON);
+    showToast(`✨ Scene ${sceneIdx + 1} improved successfully!`);
+  } catch (err) {
+    showToast(`❌ Gagal improve: ${err.message}`);
+    console.error('[Improve] Error:', err);
+  } finally {
+    loader.style.display = 'none';
+  }
+}
+
+
+
 async function genAllImages() {
   if (!currentJSON) return;
   const btn = document.getElementById('genAllImgBtn');
@@ -487,7 +613,12 @@ async function speakScene(sceneIdx) {
     const response = await fetch('/api/tts/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, lang })
+      body: JSON.stringify({
+        text,
+        lang,
+        elevenlabsApiKey: loadApiKey('elevenlabs'),
+        elevenlabsVoiceId: loadApiKey('elevenlabs_voice')
+      })
     });
     const result = await response.json();
     if (!result.success) throw new Error(result.error || 'TTS generation failed');
@@ -514,20 +645,115 @@ async function speakScene(sceneIdx) {
   }
 }
 
+// ─── BGM MUSIC MANAGEMENT ─────────────────────────────────────
+let bgmTracks = [];
+let bgmAudio = null;
+let playingBgmId = null;
+
+async function loadBgmList() {
+  if (useBackend) {
+    try {
+      const res = await fetch(`${backendBase}/music/list`);
+      const result = await res.json();
+      if (result.success && result.tracks) {
+        bgmTracks = result.tracks;
+      }
+    } catch (err) {
+      console.warn('[BGM] Gagal mengambil daftar musik dari backend:', err.message);
+    }
+  }
+  
+  if (bgmTracks.length === 0) {
+    bgmTracks = [
+      { id: 'lofi_chill', label: 'LOFI CHILL', url: '/assets/music/lofi_chill.mp3' },
+      { id: 'energetic_upbeat', label: 'ENERGETIC UPBEAT', url: '/assets/music/energetic_upbeat.mp3' },
+      { id: 'cinematic_epic', label: 'CINEMATIC EPIC', url: '/assets/music/cinematic_epic.mp3' },
+      { id: 'acoustic_soft', label: 'ACOUSTIC SOFT', url: '/assets/music/acoustic_soft.mp3' },
+      { id: 'electronic_minimal', label: 'ELECTRONIC MINIMAL', url: '/assets/music/electronic_minimal.mp3' },
+      { id: 'jazz_smooth', label: 'JAZZ SMOOTH', url: '/assets/music/jazz_smooth.mp3' },
+      { id: 'nature_ambient', label: 'NATURE AMBIENT', url: '/assets/music/nature_ambient.mp3' },
+      { id: 'corporate_clean', label: 'CORPORATE CLEAN', url: '/assets/music/corporate_clean.mp3' }
+    ];
+  }
+}
+
+function togglePlayBgm() {
+  const select = document.getElementById('bgmTrack');
+  const playBtn = document.getElementById('bgmPlayBtn');
+  if (!select || !playBtn) return;
+  
+  const trackId = select.value;
+  if (trackId === 'none') {
+    showToast('⚠️ Pilih musik terlebih dahulu untuk memutar preview.');
+    return;
+  }
+  
+  if (bgmAudio && playingBgmId === trackId) {
+    if (bgmAudio.paused) {
+      bgmAudio.play();
+      playBtn.textContent = '⏸️';
+      playBtn.title = 'Pause Preview';
+    } else {
+      bgmAudio.pause();
+      playBtn.textContent = '▶️';
+      playBtn.title = 'Play Preview';
+    }
+    return;
+  }
+  
+  if (bgmAudio) {
+    bgmAudio.pause();
+    bgmAudio = null;
+  }
+  
+  const track = bgmTracks.find(t => t.id === trackId);
+  if (!track) return;
+  
+  bgmAudio = new Audio(track.url);
+  bgmAudio.loop = true;
+  bgmAudio.volume = (parseInt(document.getElementById('bgmVolume')?.value || 15) / 100);
+  
+  bgmAudio.play().then(() => {
+    playingBgmId = trackId;
+    playBtn.textContent = '⏸️';
+    playBtn.title = 'Pause Preview';
+  }).catch(err => {
+    showToast('❌ Gagal memutar musik preview.');
+  });
+}
+
+function updateBgmVolume() {
+  const volVal = document.getElementById('bgmVolume')?.value || 15;
+  const label = document.getElementById('bgmVolumeLabel');
+  if (label) label.textContent = `${volVal}%`;
+  if (bgmAudio) {
+    bgmAudio.volume = parseFloat(volVal) / 100;
+  }
+}
+
 // ─── PHASE 5: VIDEO ASSEMBLY ──────────────────────────────────
 async function assembleVideo() {
   if (!currentJSON) return;
   
   // Validate that all images are generated
-  const scenesCount = currentJSON.scenes.length;
+  const scenesCount    = currentJSON.scenes.length;
   const generatedCount = Object.keys(sceneImages).length;
   if (generatedCount < scenesCount) {
-    alert(`⚠️ Silakan generate gambar untuk semua scene terlebih dahulu!\nBaru ${generatedCount}/${scenesCount} gambar yang siap.`);
+    showConfirm(
+      `Baru ${generatedCount}/${scenesCount} gambar yang sudah di-generate.\n\nSilakan generate semua gambar terlebih dahulu sebelum assemble video.`,
+      null, // no confirm action — just info
+      'Images Belum Lengkap'
+    );
     return;
   }
 
   if (!useBackend) {
-    alert('⚠️ Backend server tidak aktif. Silakan jalankan backend server Node.js untuk menggunakan fitur FFmpeg Video Assembly.');
+    showConfirm(
+      'Backend server tidak aktif.\n\nJalankan backend Node.js terlebih dahulu, lalu klik tombol ⚡ Connect di header untuk menghubungkan.',
+      null,
+      'Backend Tidak Aktif',
+      'info'
+    );
     return;
   }
 
@@ -536,18 +762,69 @@ async function assembleVideo() {
   btn.textContent = '⏳ Assembling...';
   setStatus('🎬 FFmpeg sedang merakit klip video, menggabungkan audio, dan menempelkan subtitle...');
 
+  const videoId = `vid_cli_${Date.now()}`;
+  
+  const progressWrap = document.getElementById('assemblyProgressWrap');
+  const progressBar = document.getElementById('assemblyProgressBar');
+  const progressText = document.getElementById('assemblyStatusText');
+  const progressPct = document.getElementById('assemblyProgressPercent');
+  
+  if (progressWrap && progressBar && progressText && progressPct) {
+    progressBar.style.width = '0%';
+    progressPct.textContent = '0%';
+    progressText.textContent = '🎬 Menghubungkan ke progress stream...';
+    progressWrap.style.display = 'block';
+  }
+
+  const evtSource = new EventSource(`${backendBase}/video/progress/${videoId}`);
+  
+  evtSource.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (progressBar) progressBar.style.width = `${data.pct}%`;
+      if (progressPct) progressPct.textContent = `${data.pct}%`;
+      if (progressText) progressText.textContent = `🎬 ${data.status || 'Memproses...'}`;
+      
+      if (data.done) {
+        evtSource.close();
+        if (progressWrap) progressWrap.style.display = 'none';
+      }
+      if (data.error) {
+        evtSource.close();
+        if (progressWrap) progressWrap.style.display = 'none';
+        showToast(`❌ Error: ${data.error}`);
+      }
+    } catch (err) {
+      console.error('[SSE] JSON parse error:', err);
+    }
+  };
+
+  evtSource.onerror = () => {
+    evtSource.close();
+  };
+
   try {
     const response = await fetch('/api/video/assemble', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         storyboard: currentJSON,
-        images: Object.values(sceneImages)
+        images: Object.values(sceneImages),
+        transition: document.getElementById('transitionType')?.value || 'cut',
+        bgmTrack: document.getElementById('bgmTrack')?.value || 'none',
+        bgmVolume: parseInt(document.getElementById('bgmVolume')?.value || 15),
+        videoId: videoId,
+        quality: document.getElementById('videoQuality')?.value || '720p',
+        elevenlabsApiKey: loadApiKey('elevenlabs'),
+        elevenlabsVoiceId: loadApiKey('elevenlabs_voice')
       })
     });
     
     const result = await response.json();
     if (!result.success) throw new Error(result.error || 'Video assembly failed');
+
+    evtSource.close();
+    if (progressWrap) progressWrap.style.display = 'none';
 
     // Display the video player
     document.getElementById('videoPlayerWrap').style.display = 'block';
@@ -567,9 +844,10 @@ async function assembleVideo() {
     document.getElementById('videoPlayerWrap').scrollIntoView({ behavior: 'smooth' });
     showToast('🎬 Video berhasil dirakit!');
   } catch (err) {
-    alert(`❌ Gagal merakit video: ${err.message}`);
+    showToast(`❌ Gagal merakit video: ${err.message}`, 4000);
   } finally {
     setStatus('');
+
     btn.disabled = false;
     btn.textContent = '🎬 Assemble Video (MP4)';
   }
@@ -629,7 +907,32 @@ function render(data) {
       Style Lock
     </label>
     <button class="gen-all-btn" id="genAllImgBtn" onclick="genAllImages()">✦ Generate All Images</button>
+    <select id="transitionType" style="flex: 0.6; min-width: 100px; padding: 5px 8px; border: var(--border); font-family: 'IBM Plex Mono', monospace; font-size: 10px; background: var(--white); box-shadow: 2px 2px 0 var(--black);">
+      <option value="cut">⚡ Cut (No Transition)</option>
+      <option value="fade">🌅 Fade In/Out</option>
+      <option value="zoom">🔍 Zoom (Ken Burns)</option>
+    </select>
+    <select id="videoQuality" style="flex: 0.6; min-width: 100px; padding: 5px 8px; border: var(--border); font-family: 'IBM Plex Mono', monospace; font-size: 10px; background: var(--white); box-shadow: 2px 2px 0 var(--black); margin-left: 6px;">
+      <option value="720p">📺 720p (Fast)</option>
+      <option value="1080p">📺 1080p (Standard)</option>
+      <option value="1440p">📺 1440p (High)</option>
+    </select>
     <button class="gen-all-btn" id="assembleVideoBtn" onclick="assembleVideo()" style="background: var(--red); color: var(--white); margin-left: 8px;">🎬 Assemble Video (MP4)</button>
+    
+    <div style="width: 100%; height: 2.5px; background: var(--black); margin: 10px 0; border: none;"></div>
+    
+    <span class="img-gen-bar-label">🎵 BGM Music:</span>
+    <select id="bgmTrack" style="flex: 0.8; min-width: 130px; padding: 5px 8px; border: var(--border); font-family: 'IBM Plex Mono', monospace; font-size: 10px; background: var(--white); box-shadow: 2px 2px 0 var(--black);">
+      <option value="none">🔇 No Music (Silence)</option>
+      ${bgmTracks.map(t => `<option value="${t.id}">${t.label}</option>`).join('')}
+    </select>
+    <button class="sc-img-btn" id="bgmPlayBtn" onclick="togglePlayBgm()" style="position:static; opacity:1; cursor:pointer; font-size:10px; padding:5px 10px; height:auto; box-shadow:2px 2px 0 var(--black);" title="Play Preview">▶️</button>
+    <label style="display:flex; align-items:center; gap:8px; font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; text-transform:uppercase;">
+      Vol:
+      <input type="range" id="bgmVolume" min="5" max="50" value="15" oninput="updateBgmVolume()" style="width:70px; height:6px; cursor:pointer; box-shadow:none; padding:0; margin:0;"/>
+      <span id="bgmVolumeLabel">15%</span>
+    </label>
+    
     <span class="img-provider-note" id="imgProviderNote" style="display:none"></span>
   `;
 
@@ -645,7 +948,13 @@ function render(data) {
           </svg>
           Click to generate image
         </div>
-        <button class="sc-img-btn" onclick="event.stopPropagation(); genImageForScene(${idx})">↻ Regenerate</button>
+        <div class="sc-img-actions-wrap" onclick="event.stopPropagation();">
+          <button class="sc-img-btn" onclick="genImageForScene(${idx})">↻ Regenerate</button>
+          <label class="sc-upload-btn" title="Upload custom image">
+            📁 Upload
+            <input type="file" accept="image/*" onchange="uploadSceneImage(${idx}, this)" style="display:none">
+          </label>
+        </div>
         <div class="sc-img-loading" style="display:none"><span class="sp"></span>Generating...</div>
       </div>
 
@@ -664,7 +973,10 @@ function render(data) {
              </div>`
           : ''}
         ${scene.micro_action ? `<div class="sc-lbl">Micro Action</div><div class="sc-val" contenteditable="true" data-field="micro_action" data-idx="${idx}">${scene.micro_action}</div>` : ''}
-        <div class="sc-edit-hint">✏️ Click to edit</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+          <div class="sc-edit-hint" style="margin:0;">✏️ Click to edit</div>
+          <button class="sc-img-btn" onclick="event.stopPropagation(); improveScene(${idx})" style="position:static; opacity:1; padding:3px 6px; font-size:9px; background:var(--yellow); cursor:pointer; height:auto; box-shadow: 2px 2px 0 var(--black);" title="Improve Scene content using AI">✨ Improve Scene</button>
+        </div>
       </div>
     </div>
   `).join('')}</div>`;
@@ -692,10 +1004,21 @@ function render(data) {
     : '<p style="font-size:13px;color:#888">Tidak ada tips.</p>';
 }
 
-// ─── HISTORY MANAGEMENT ───────────────────────────────────────
-function getHistory() { return loadFromStorage(STORAGE.HISTORY, []); }
-function addToHistory(data) {
-  const history = getHistory();
+// ─── HISTORY MANAGEMENT (IndexedDB + localStorage fallback) ────
+async function getHistory() {
+  if (typeof idbKeyval !== 'undefined') {
+    try {
+      const history = await idbKeyval.get(STORAGE.HISTORY);
+      return history || [];
+    } catch (e) {
+      console.warn('[IDB] Error reading history, falling back to localStorage:', e);
+    }
+  }
+  return loadFromStorage(STORAGE.HISTORY, []);
+}
+
+async function addToHistory(data) {
+  const history = await getHistory();
   history.unshift({
     id:        Date.now(),
     title:     data.title || data.concept || 'Untitled',
@@ -704,12 +1027,24 @@ function addToHistory(data) {
     data
   });
   if (history.length > 20) history.pop();
-  saveToStorage(STORAGE.HISTORY, history);
-  renderHistory();
+  
+  if (typeof idbKeyval !== 'undefined') {
+    try {
+      await idbKeyval.set(STORAGE.HISTORY, history);
+    } catch (e) {
+      console.warn('[IDB] Error saving history, falling back to localStorage:', e);
+      saveToStorage(STORAGE.HISTORY, history);
+    }
+  } else {
+    saveToStorage(STORAGE.HISTORY, history);
+  }
+  await renderHistory();
 }
-function renderHistory() {
-  const history   = getHistory();
+
+async function renderHistory() {
+  const history   = await getHistory();
   const container = document.getElementById('histList');
+  if (!container) return;
   if (history.length === 0) {
     container.innerHTML = '<div class="history-empty">Belum ada history</div>';
     return;
@@ -721,8 +1056,10 @@ function renderHistory() {
     </div>
   `).join('');
 }
-function loadHistory(id) {
-  const entry = getHistory().find(h => h.id === id);
+
+async function loadHistory(id) {
+  const history = await getHistory();
+  const entry = history.find(h => h.id === id);
   if (!entry) return;
   currentJSON = entry.data;
   document.getElementById('emptyState').style.display  = 'none';
@@ -732,10 +1069,21 @@ function loadHistory(id) {
   switchTab('s');
   showToast('📂 Loaded from history');
 }
-function clearHistory() {
+
+async function clearHistory() {
   if (!confirm('Hapus semua history?')) return;
-  saveToStorage(STORAGE.HISTORY, []);
-  renderHistory();
+  
+  if (typeof idbKeyval !== 'undefined') {
+    try {
+      await idbKeyval.del(STORAGE.HISTORY);
+    } catch (e) {
+      console.warn('[IDB] Error clearing history, falling back to localStorage:', e);
+      saveToStorage(STORAGE.HISTORY, []);
+    }
+  } else {
+    saveToStorage(STORAGE.HISTORY, []);
+  }
+  await renderHistory();
   showToast('🗑️ History cleared');
 }
 
@@ -748,7 +1096,7 @@ async function detectBackend() {
       if (res.ok) {
         useBackend = true;
         backendBase = healthPath.replace(/\/health$/, '');
-        document.getElementById('verBadge').innerHTML = '<span class="conn-dot ok"></span>v3.5.2 — BACKEND CONNECTED';
+        document.getElementById('verBadge').innerHTML = '<span class="conn-dot ok"></span>v3.11.0 — BACKEND CONNECTED';
         // Sembunyikan tombol Connect saat berhasil terhubung
         const connectBtn = document.getElementById('connectBtn');
         if (connectBtn) connectBtn.style.display = 'none';
@@ -758,7 +1106,7 @@ async function detectBackend() {
   }
   useBackend = false;
   backendBase = '';
-  document.getElementById('verBadge').innerHTML = '<span class="conn-dot err"></span>v3.5.2 — DIRECT MODE';
+  document.getElementById('verBadge').innerHTML = '<span class="conn-dot err"></span>v3.11.0 — DIRECT MODE';
   // Tampilkan tombol Connect saat backend tidak tersedia
   const connectBtn = document.getElementById('connectBtn');
   if (connectBtn) connectBtn.style.display = 'inline-flex';
@@ -772,7 +1120,7 @@ async function reconnectBackend() {
     btn.disabled = true;
     btn.textContent = '⏳ Connecting...';
   }
-  if (badge) badge.innerHTML = '<span class="conn-dot" style="background:#f59e0b;animation:pulse 1s infinite"></span>v3.5.2 — CONNECTING...';
+  if (badge) badge.innerHTML = '<span class="conn-dot" style="background:#f59e0b;animation:pulse 1s infinite"></span>v3.11.0 — CONNECTING...';
   await detectBackend();
   if (btn) {
     btn.disabled = false;
@@ -866,6 +1214,9 @@ async function gen() {
   const narr       = document.getElementById('narr').value;
   const sceneCount = Math.max(4, Math.round(parseInt(dur) / 2));
 
+  document.getElementById('variationSwitcher').style.display = 'none';
+  storyboardVariations = [];
+
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('resultArea').style.display = '';
   setError('');
@@ -897,6 +1248,120 @@ Return ONLY valid JSON, no markdown fences, no explanation:
   } finally {
     document.getElementById('gb').disabled    = false;
     document.getElementById('gb').textContent = '▶ Generate Storyboard';
+  }
+}
+
+async function genBatch() {
+  const apiKey = document.getElementById('apikey').value.trim();
+  const idea   = document.getElementById('idea').value.trim();
+  const model  = document.getElementById('model').value;
+
+  if (!apiKey) { showToast('⚠️ Masukkan API key!'); return; }
+  if (!idea)   { showToast('⚠️ Masukkan ide konten!'); return; }
+  if (currentProvider === 'custom' && !document.getElementById('customUrl').value.trim()) {
+    showToast('⚠️ Masukkan base URL!'); return;
+  }
+
+  saveApiKey(currentProvider, apiKey);
+  if (currentProvider === 'custom') saveToStorage(STORAGE.CUSTOM_URL, document.getElementById('customUrl').value.trim());
+  savePreferences();
+
+  const dur        = document.getElementById('dur').value;
+  const ratio      = document.getElementById('ratio').value;
+  const plat       = document.getElementById('plat').value;
+  const narr       = document.getElementById('narr').value;
+  const sceneCount = Math.max(4, Math.round(parseInt(dur) / 2));
+
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('resultArea').style.display = '';
+  document.getElementById('variationSwitcher').style.display = 'none';
+  setError('');
+  setStatus(`Generating 3 Variations via ${currentProvider} (${model})...`);
+  showSkeleton();
+  
+  const gbb = document.getElementById('gbb');
+  gbb.disabled = true;
+  gbb.textContent = '⏳ Generating (3x)...';
+  
+  const gb = document.getElementById('gb');
+  gb.disabled = true;
+
+  const buildPrompt = (varNum) => {
+    let focus = "";
+    if (varNum === 1) focus = "Focus on intense emotional appeal or a surprising hook.";
+    if (varNum === 2) focus = "Focus on a highly educational, step-by-step breakdown or demonstration.";
+    if (varNum === 3) focus = "Focus on dynamic visual pacing and viral comedy/relatability.";
+    
+    return `You are a viral short-form video storyboard expert.
+Content idea: "${idea}"
+Duration: ${dur} seconds | Ratio: ${ratio} | Platform: ${plat} | Genre: ${selectedGenres.join(', ')} | Narration: ${narr}
+Scenes: exactly ${sceneCount}
+${focus}
+Return ONLY valid JSON, no markdown fences, no explanation:
+{"video_id":"snake_case","title":"Title (Variation ${varNum})","concept":"One line","duration_total":"${dur} detik","aspect_ratio":"${ratio}","platform":"${plat}","genre":"${selectedGenres.join(', ')}","visual_style":"Aesthetic description","difficulty":"Mudah","scenes":[{"scene_num":1,"timing":"0:00-0:03","visual":"Specific visual description for image generation","camera":"Angle+movement","sfx":"Sound effects","narration":${narr === 'None' ? 'null' : '"Text in ' + narr + '"'},"micro_action":"Subtle action"}],"tips":["Tip 1","Tip 2","Tip 3"],"generate_with":["ffmpeg","edge-tts"]}`;
+  };
+
+  try {
+    const promises = [1, 2, 3].map(async (i) => {
+      const p = buildPrompt(i);
+      const raw = await callAPI(apiKey, model, p);
+      const clean = raw.replace(/```json|```/g, '').trim();
+      const parsed = safeParseJSON(clean);
+      if (!parsed || !parsed.scenes) throw new Error(`Variation ${i} failed to return valid storyboard JSON`);
+      return parsed;
+    });
+
+    const results = await Promise.allSettled(promises);
+    storyboardVariations = results
+      .filter(r => r.status === 'fulfilled')
+      .map(r => r.value);
+
+    if (storyboardVariations.length === 0) {
+      throw new Error('Gagal men-generate semua variasi storyboard. Silakan coba lagi.');
+    }
+
+    selectedVariationIndex = 0;
+    currentJSON = storyboardVariations[0];
+    document.getElementById('jp').textContent = JSON.stringify(currentJSON, null, 2);
+    render(currentJSON);
+    
+    document.getElementById('variationSwitcher').style.display = 'flex';
+    updateVariationTabUI();
+    
+    showToast(`👥 Berhasil men-generate ${storyboardVariations.length} variasi storyboard!`);
+    addToHistory(currentJSON);
+  } catch (err) {
+    setError(err.message);
+    showToast(`❌ ${err.message}`);
+  } finally {
+    setStatus('');
+    gbb.disabled = false;
+    gbb.textContent = '👥 Generate 3 Variations';
+    gb.disabled = false;
+  }
+}
+
+function selectVariation(idx) {
+  if (!storyboardVariations[idx]) return;
+  selectedVariationIndex = idx;
+  currentJSON = storyboardVariations[idx];
+  document.getElementById('jp').textContent = JSON.stringify(currentJSON, null, 2);
+  render(currentJSON);
+  updateVariationTabUI();
+  showToast(`📂 Mengaktifkan Variasi ${idx + 1}`);
+}
+
+function updateVariationTabUI() {
+  for (let i = 0; i < 3; i++) {
+    const btn = document.getElementById(`varBtn${i}`);
+    if (btn) {
+      btn.style.display = storyboardVariations[i] ? 'inline-block' : 'none';
+      if (i === selectedVariationIndex) {
+        btn.classList.add('on');
+      } else {
+        btn.classList.remove('on');
+      }
+    }
   }
 }
 
@@ -1071,6 +1536,64 @@ function buildExportCard(data) {
   `;
 }
 
+function shareStoryboard() {
+  if (!currentJSON) { 
+    showToast('⚠️ Belum ada storyboard untuk dibagikan!'); 
+    return; 
+  }
+  try {
+    const jsonStr = JSON.stringify(currentJSON);
+    const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
+    
+    if (base64.length > 8000) {
+      showConfirm(
+        'Storyboard ini terlalu besar untuk dibagikan via URL (melebihi limit ukuran 8KB).\n\nSilakan gunakan tombol "Download JSON" untuk mengekspor data sebagai berkas.',
+        null,
+        'Ukuran Terlalu Besar',
+        'info'
+      );
+      return;
+    }
+    
+    const shareUrl = `${location.origin}${location.pathname}?sb=${base64}`;
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        showToast('🔗 Link share berhasil disalin ke clipboard!');
+      }).catch(() => {
+        fallbackCopyText(shareUrl);
+      });
+    } else {
+      fallbackCopyText(shareUrl);
+    }
+  } catch (err) {
+    showToast('❌ Gagal memproses link share.');
+    console.error('[Share] Error:', err);
+  }
+}
+
+function fallbackCopyText(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  const ok = document.execCommand('copy');
+  document.body.removeChild(ta);
+  if (ok) {
+    showToast('🔗 Link share berhasil disalin ke clipboard!');
+  } else {
+    showConfirm(
+      `Gagal menyalin otomatis. Silakan salin tautan berikut secara manual:\n\n${text}`,
+      null,
+      'Salin Tautan Manual',
+      'info'
+    );
+  }
+}
+
 async function exportAsImage() {
   if (!currentJSON) { showToast('⚠️ Belum ada storyboard untuk diexport!'); return; }
 
@@ -1162,6 +1685,12 @@ const SETTINGS_IMG_PROVIDERS = [
   { key: 'img_weizerouter',label: 'WeizeRouter Images', note: 'wzr_live_... (sama seperti WeizeRouter)' },
 ];
 
+// Config TTS providers untuk settings grid
+const SETTINGS_TTS_PROVIDERS = [
+  { key: 'elevenlabs',       label: 'ElevenLabs API Key', note: 'Your ElevenLabs API key' },
+  { key: 'elevenlabs_voice', label: 'ElevenLabs Voice ID', note: 'e.g. 21m00Tcm4TlvDq8ikWAM' },
+];
+
 function buildSettingsGrid(containerId, providers) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -1184,6 +1713,7 @@ function buildSettingsGrid(containerId, providers) {
             oninput="updateDot('${key}')"
           />
           <button class="key-toggle-btn" onclick="toggleKeyVisibility('skey_${key}', this)" title="Show/Hide">👁</button>
+          ${key === 'elevenlabs_voice' ? `<button class="key-toggle-btn" onclick="testElevenLabsVoice(this)" title="Test Voice ID" style="margin-left: 4px; background: var(--green); color: var(--white); font-size: 10px; padding: 0 6px;">🔊 Test</button>` : ''}
         </div>
         <div class="settings-note">${note}</div>
       </div>
@@ -1191,9 +1721,48 @@ function buildSettingsGrid(containerId, providers) {
   }).join('');
 }
 
+async function testElevenLabsVoice(btn) {
+  const elApiKey = document.getElementById('skey_elevenlabs')?.value.trim();
+  const elVoiceId = document.getElementById('skey_elevenlabs_voice')?.value.trim();
+
+  if (!elApiKey) { showToast('⚠️ Masukkan ElevenLabs API Key terlebih dahulu!'); return; }
+  if (!elVoiceId) { showToast('⚠️ Masukkan ElevenLabs Voice ID!'); return; }
+
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Testing...';
+
+  try {
+    const response = await fetch('/api/tts/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: 'Testing Voice ID from StoryBOARD Generator',
+        elevenlabsApiKey: elApiKey,
+        elevenlabsVoiceId: elVoiceId
+      })
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'TTS generation failed');
+
+    const audio = new Audio(result.audioUrl);
+    audio.onended = () => {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    };
+    await audio.play();
+    showToast('🔊 Memutar preview suara ElevenLabs...');
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = originalText;
+    showToast(`❌ Gagal test voice: ${err.message}`);
+  }
+}
+
 function openSettings() {
   buildSettingsGrid('settingsLLMGrid', SETTINGS_LLM_PROVIDERS);
   buildSettingsGrid('settingsImgGrid', SETTINGS_IMG_PROVIDERS);
+  buildSettingsGrid('settingsTTSGrid', SETTINGS_TTS_PROVIDERS);
   document.getElementById('settingsOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -1223,7 +1792,7 @@ function updateDot(providerKey) {
 }
 
 function saveAllKeys() {
-  const allProviders = [...SETTINGS_LLM_PROVIDERS, ...SETTINGS_IMG_PROVIDERS];
+  const allProviders = [...SETTINGS_LLM_PROVIDERS, ...SETTINGS_IMG_PROVIDERS, ...SETTINGS_TTS_PROVIDERS];
   let savedCount = 0;
   allProviders.forEach(({ key }) => {
     const input = document.getElementById(`skey_${key}`);
@@ -1233,13 +1802,11 @@ function saveAllKeys() {
       saveApiKey(key, val);
       savedCount++;
     } else {
-      // Hapus key jika dikosongkan
       const keys = loadFromStorage(STORAGE.API_KEYS, {});
       delete keys[key];
       saveToStorage(STORAGE.API_KEYS, keys);
     }
   });
-  // Refresh input API key di sidebar sesuai provider aktif
   document.getElementById('apikey').value = loadApiKey(currentProvider);
   updateSettingsKeyBadge();
   closeSettings();
@@ -1251,8 +1818,7 @@ function clearAllKeys() {
   saveToStorage(STORAGE.API_KEYS, {});
   document.getElementById('apikey').value = '';
   updateSettingsKeyBadge();
-  // Refresh dots jika modal masih terbuka
-  [...SETTINGS_LLM_PROVIDERS, ...SETTINGS_IMG_PROVIDERS].forEach(({ key }) => {
+  [...SETTINGS_LLM_PROVIDERS, ...SETTINGS_IMG_PROVIDERS, ...SETTINGS_TTS_PROVIDERS].forEach(({ key }) => {
     const dot = document.getElementById(`dot_${key}`);
     const input = document.getElementById(`skey_${key}`);
     if (dot) dot.classList.remove('saved');
@@ -1281,6 +1847,25 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ─── THEME MANAGEMENT (Dark/Light Mode C-01) ─────────────────
+function toggleTheme() {
+  const currentTheme = document.body.getAttribute('data-theme') || 'light';
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  document.body.setAttribute('data-theme', newTheme);
+  saveToStorage('sbgen_theme', newTheme);
+  showToast(`🌓 Mode ${newTheme === 'dark' ? 'Gelap' : 'Terang'} aktif`);
+}
+
+function initTheme() {
+  const savedTheme = loadFromStorage('sbgen_theme');
+  if (savedTheme) {
+    document.body.setAttribute('data-theme', savedTheme);
+  } else {
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.body.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+  }
+}
+
 // ─── AUTO-SAVE LISTENERS ──────────────────────────────────────
 document.getElementById('apikey').addEventListener('change', () => {
   const key = document.getElementById('apikey').value.trim();
@@ -1289,6 +1874,300 @@ document.getElementById('apikey').addEventListener('change', () => {
 ['dur', 'ratio', 'plat', 'narr', 'model'].forEach(id => {
   document.getElementById(id).addEventListener('change', savePreferences);
 });
+
+// ─── CONTENT CALENDAR (Phase D-04) ───────────────────────────
+let calendarJSON = null;
+
+function openCalendar() {
+  const currentIdea = document.getElementById('idea').value.trim();
+  if (currentIdea) {
+    document.getElementById('calendarNiche').value = currentIdea;
+  }
+  document.getElementById('calendarOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeCalendar() {
+  document.getElementById('calendarOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function handleCalendarOverlayClick(e) {
+  if (e.target === document.getElementById('calendarOverlay')) closeCalendar();
+}
+
+async function generateCalendar() {
+  const apiKey = document.getElementById('apikey').value.trim();
+  const model  = document.getElementById('model').value;
+  const niche  = document.getElementById('calendarNiche').value.trim();
+  const days   = document.getElementById('calendarDays').value;
+
+  if (!apiKey) { showToast('⚠️ Masukkan API key!'); return; }
+  if (!niche) { showToast('⚠️ Masukkan niche / topik!'); return; }
+
+  const statusEl = document.getElementById('calendarStatus');
+  const genBtn = document.getElementById('calendarGenBtn');
+  const resultWrap = document.getElementById('calendarResultWrap');
+
+  genBtn.disabled = true;
+  genBtn.textContent = '⏳ Generating Content Calendar...';
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Menghubungi AI...';
+  resultWrap.style.display = 'none';
+
+  const prompt = `You are a viral content calendar planner.
+Topik Niche: "${niche}"
+Jumlah Hari: ${days} hari.
+Return ONLY valid JSON containing a structured content calendar outline with the following format. Do not return markdown fences, do not return explanations:
+{"niche":"${niche}","days":[{"day":1,"title":"Topic Title","concept":"Viral hook & concept breakdown","duration":"15-30s","visual_direction":"Visual layout description","audio_theme":"SFX theme suggestion"}]}`;
+
+  try {
+    const raw = await callAPI(apiKey, model, prompt);
+    const clean = raw.replace(/```json|```/g, '').trim();
+    calendarJSON = safeParseJSON(clean);
+    
+    if (!calendarJSON || !calendarJSON.days) {
+      throw new Error("Format JSON kalender tidak valid.");
+    }
+
+    renderCalendarResults();
+    statusEl.style.display = 'none';
+    resultWrap.style.display = 'block';
+    showToast('📅 Kalender Konten berhasil dibuat!');
+  } catch (err) {
+    statusEl.textContent = `❌ Error: ${err.message}`;
+  } finally {
+    genBtn.disabled = false;
+    genBtn.textContent = '✨ Generate Calendar Outline';
+  }
+}
+
+function renderCalendarResults() {
+  const listEl = document.getElementById('calendarResultList');
+  if (!listEl || !calendarJSON) return;
+
+  listEl.innerHTML = calendarJSON.days.map(d => `
+    <div style="background:var(--white); border:var(--border); padding:12px; box-shadow: 2px 2px 0 var(--black); display:flex; flex-direction:column; gap:6px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1.5px solid var(--black); padding-bottom:4px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-weight:bold; font-size:11px; background:var(--yellow); padding:2px 6px; border:1px solid var(--black); color:var(--black);">HARI ${d.day}</span>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; color:#555;">Durasi: ${d.duration}</span>
+      </div>
+      <div style="font-weight:bold; font-size:13px; color:var(--black);">${d.title}</div>
+      <div style="font-size:11px; color:#333; line-height:1.4;"><strong>Konsep:</strong> ${d.concept}</div>
+      <div style="font-size:11px; color:#333; line-height:1.4;"><strong>Visual:</strong> ${d.visual_direction}</div>
+      <div style="font-size:10px; color:#666; font-family:'IBM Plex Mono',monospace;">🎵 Audio: ${d.audio_theme}</div>
+      <button onclick="useCalendarIdea('${d.title.replace(/'/g, "\\'")}: ${d.concept.replace(/'/g, "\\'")}')" style="margin-top:6px; font-size:10px; padding:4px 8px; cursor:pointer; background:var(--black); color:var(--white); font-weight:bold; border:var(--border); display:inline-block; align-self:flex-start; box-shadow: 1px 1px 0 var(--black);">🎬 Create Storyboard</button>
+    </div>
+  `).join('');
+}
+
+function useCalendarIdea(ideaText) {
+  document.getElementById('idea').value = ideaText;
+  closeCalendar();
+  showToast('📋 Topik disalin ke Form Ide!');
+}
+
+function exportCalendarCSV() {
+  if (!calendarJSON || !calendarJSON.days) return;
+  
+  let csvContent = "data:text/csv;charset=utf-8,";
+  csvContent += "Day,Title,Concept,Duration,Visual Direction,Audio Theme\n";
+  
+  calendarJSON.days.forEach(d => {
+    const row = [
+      `Day ${d.day}`,
+      `"${d.title.replace(/"/g, '""')}"`,
+      `"${d.concept.replace(/"/g, '""')}"`,
+      `"${d.duration.replace(/"/g, '""')}"`,
+      `"${d.visual_direction.replace(/"/g, '""')}"`,
+      `"${d.audio_theme.replace(/"/g, '""')}"`
+    ].join(",");
+    csvContent += row + "\n";
+  });
+
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `content_calendar_${calendarJSON.niche.replace(/\s+/g, '_')}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('📊 CSV berhasil di-download!');
+}
+
+function copyCalendarJSON() {
+  if (!calendarJSON) return;
+  navigator.clipboard.writeText(JSON.stringify(calendarJSON, null, 2))
+    .then(() => showToast('📋 JSON disalin ke clipboard!'))
+    .catch(() => showToast('❌ Gagal menyalin JSON'));
+}
+
+// ─── THUMBNAIL GENERATOR (Phase D-01) ────────────────────────
+function openThumbnailGenerator() {
+  if (!currentJSON) {
+    showToast('⚠️ Generate storyboard terlebih dahulu!');
+    return;
+  }
+  
+  const title = currentJSON.title || 'Viral Video';
+  const firstSceneVisual = currentJSON.scenes?.[0]?.visual || '';
+  const style = currentJSON.visual_style || '';
+  
+  document.getElementById('thumbText').value = title;
+  document.getElementById('thumbPrompt').value = firstSceneVisual ? `${firstSceneVisual}. Visual style: ${style}` : '';
+  
+  const aspect = currentJSON.aspect_ratio || '9:16';
+  document.getElementById('thumbRatio').value = aspect === '9:16' ? '9:16' : '16:9';
+  
+  document.getElementById('thumbnailOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeThumbnailGenerator() {
+  document.getElementById('thumbnailOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function handleThumbnailOverlayClick(e) {
+  if (e.target === document.getElementById('thumbnailOverlay')) closeThumbnailGenerator();
+}
+
+async function generateThumbnail() {
+  const apiKey = document.getElementById('apikey').value.trim();
+  const promptText = document.getElementById('thumbPrompt').value.trim();
+  const overlayText = document.getElementById('thumbText').value.trim();
+  const ratio = document.getElementById('thumbRatio').value;
+  const overlayColor = document.getElementById('thumbColor').value;
+  
+  const imgProv = document.getElementById('imgProvider')?.value || 'pollinations';
+  const imgModel = document.getElementById('imgModel')?.value || 'flux';
+  
+  if (!promptText) {
+    showToast('⚠️ Masukkan prompt visual thumbnail!');
+    return;
+  }
+  
+  const statusEl = document.getElementById('thumbStatus');
+  const genBtn = document.getElementById('thumbGenBtn');
+  const resultWrap = document.getElementById('thumbResultWrap');
+  
+  genBtn.disabled = true;
+  genBtn.textContent = '⏳ Generating Image...';
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Membuat gambar dasar via AI...';
+  resultWrap.style.display = 'none';
+  
+  const sizeMap = { '9:16': '768x1344', '16:9': '1344x768' };
+  const size = sizeMap[ratio] || '1024x576';
+  const styleLock = document.getElementById('styleLock')?.checked || false;
+  const seed = styleLock ? (styleLockSeed || 42) : Math.floor(Math.random() * 999999);
+  
+  try {
+    let imageUrl = '';
+    
+    if (imgProv === 'pollinations') {
+      const encoded = encodeURIComponent(promptText);
+      const [w, h] = size.split('x');
+      imageUrl = `https://image.pollinations.ai/prompt/${encoded}?width=${w}&height=${h}&model=${imgModel}&nologo=true&seed=${seed}`;
+    } else {
+      if (!useBackend) {
+        throw new Error('Backend tidak tersedia. Gunakan Pollinations.');
+      }
+      const provApiKey = loadApiKey(`img_${imgProv}`);
+      const response = await fetch(`${backendBase}/image/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: imgProv, model: imgModel, prompt: promptText, size, apiKey: provApiKey, seed })
+      });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error || 'Gagal generate gambar.');
+      imageUrl = result.imageUrl;
+    }
+    
+    statusEl.textContent = 'Menggambar teks overlay neobrutalism...';
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    const [w, h] = size.split('x').map(Number);
+    canvas.width = w;
+    canvas.height = h;
+    
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = imageUrl;
+    
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, w, h);
+      
+      if (overlayText) {
+        ctx.save();
+        
+        const fontSize = Math.round(w * 0.07);
+        ctx.font = `900 ${fontSize}px "Space Grotesk", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        const textWidth = ctx.measureText(overlayText).width;
+        const rectWidth = textWidth + 40;
+        const rectHeight = fontSize + 30;
+        
+        const rx = (w - rectWidth) / 2;
+        const ry = (h - rectHeight) / 2;
+        
+        ctx.fillStyle = '#0A0A0A';
+        ctx.fillRect(rx + 8, ry + 8, rectWidth, rectHeight);
+        
+        ctx.fillStyle = overlayColor;
+        ctx.strokeStyle = '#0A0A0A';
+        ctx.lineWidth = 6;
+        ctx.fillRect(rx, ry, rectWidth, rectHeight);
+        ctx.strokeRect(rx, ry, rectWidth, rectHeight);
+        
+        ctx.fillStyle = '#0A0A0A';
+        ctx.fillText(overlayText, w / 2, h / 2 + 3);
+        
+        ctx.restore();
+      }
+      
+      const container = document.getElementById('thumbCanvasContainer');
+      container.innerHTML = '';
+      
+      canvas.style.maxWidth = '100%';
+      canvas.style.height = 'auto';
+      canvas.style.border = 'var(--border)';
+      canvas.id = 'thumbnailCanvas';
+      container.appendChild(canvas);
+      
+      statusEl.style.display = 'none';
+      resultWrap.style.display = 'block';
+      showToast('🖼️ Thumbnail berhasil dibuat!');
+    };
+    
+    img.onerror = () => {
+      throw new Error('Gagal memuat gambar hasil generator.');
+    };
+    
+  } catch (err) {
+    statusEl.textContent = `❌ Error: ${err.message}`;
+  } finally {
+    genBtn.disabled = false;
+    genBtn.textContent = '🎨 Generate Thumbnail';
+  }
+}
+
+function downloadThumbnail() {
+  const canvas = document.getElementById('thumbnailCanvas');
+  if (!canvas) return;
+  
+  const link = document.createElement('a');
+  link.download = `thumbnail_${Date.now()}.png`;
+  link.href = canvas.toDataURL('image/png');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('📥 Download thumbnail berhasil!');
+}
 
 // ─── KEYBOARD SHORTCUTS ───────────────────────────────────────
 document.addEventListener('keydown', (e) => {
@@ -1303,7 +2182,9 @@ document.addEventListener('keydown', (e) => {
 
 // ─── INIT ─────────────────────────────────────────────────────
 (async function init() {
+  initTheme();
   await detectBackend();
+  await loadBgmList();
 
   const prefs = loadPreferences();
   if (prefs) {
@@ -1327,7 +2208,29 @@ document.addEventListener('keydown', (e) => {
     setProvider('anthropic');
   }
 
-  renderHistory();
+  await renderHistory();
   updateSettingsKeyBadge();
-  console.log('[StoryBOARD] ✅ Initialized — v3.5.2 (WeizeRouter ready)');
+
+  // Load shared storyboard if present in URL
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sbParam = urlParams.get('sb');
+    if (sbParam) {
+      const decodedJson = decodeURIComponent(escape(atob(sbParam)));
+      const parsedData = JSON.parse(decodedJson);
+      if (parsedData && parsedData.scenes) {
+        currentJSON = parsedData;
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('resultArea').style.display = '';
+        document.getElementById('jp').textContent = JSON.stringify(currentJSON, null, 2);
+        render(currentJSON);
+        switchTab('s');
+        showToast('📂 Storyboard loaded from shared URL!');
+      }
+    }
+  } catch (err) {
+    console.warn('[Share] Failed to decode shared storyboard URL:', err);
+  }
+
+  console.log('[StoryBOARD] ✅ Initialized — v3.11.0 (WeizeRouter ready)');
 })();

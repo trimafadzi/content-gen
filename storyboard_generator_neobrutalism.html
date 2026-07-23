@@ -21,8 +21,9 @@
 <header class="header">
   <div class="logo">Story<span>BOARD</span> GEN</div>
   <div style="display:flex;align-items:center;gap:10px">
-    <div class="badge"><span class="mono" id="verBadge">v3.3 — MULTI-PROVIDER</span></div>
+    <div class="badge"><span class="mono" id="verBadge">v3.11.0 — CONNECTING...</span></div>
     <button id="connectBtn" class="connect-btn" onclick="reconnectBackend()" title="Coba sambungkan ke backend server" style="display:none">⚡ Connect</button>
+    <button id="themeToggleBtn" onclick="toggleTheme()" class="connect-btn" title="Toggle Dark/Light Mode" style="animation:none; box-shadow: 2px 2px 0 var(--black);">🌓 Theme</button>
   </div>
 </header>
 
@@ -116,6 +117,8 @@
     </div>
 
     <button class="gen-btn" id="gb" onclick="gen()">▶ Generate Storyboard</button>
+    <button class="gen-btn" id="gbb" onclick="genBatch()" style="background:var(--blue); color:var(--white); margin-top:8px;">👥 Generate 3 Variations</button>
+    <button class="gen-btn" id="calendarBtn" onclick="openCalendar()" style="background:var(--green); color:var(--white); margin-top:8px;">📅 Content Calendar Outline</button>
 
     <button class="settings-btn" id="settingsBtn" onclick="openSettings()">
       <span class="settings-btn-left">⚙ API Key Settings</span>
@@ -147,10 +150,29 @@
       <div class="status-bar" id="stBar"></div>
       <div class="err-bar" id="erBar" style="display:none"></div>
 
+      <!-- Storyboard Variations Switcher (Sprint 3) -->
+      <div id="variationSwitcher" style="display:none; margin-bottom:16px; align-items:center; gap:8px; background:var(--white); border:var(--border); padding:8px 12px; box-shadow:var(--shadow);">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700; text-transform:uppercase; color:var(--black); letter-spacing:1px;">Variasi Storyboard:</span>
+        <button class="tab on" id="varBtn0" onclick="selectVariation(0)" style="font-size:10px; padding:4px 10px; margin:0; cursor:pointer;">Variasi 1</button>
+        <button class="tab" id="varBtn1" onclick="selectVariation(1)" style="font-size:10px; padding:4px 10px; margin:0; cursor:pointer;">Variasi 2</button>
+        <button class="tab" id="varBtn2" onclick="selectVariation(2)" style="font-size:10px; padding:4px 10px; margin:0; cursor:pointer;">Variasi 3</button>
+      </div>
+
       <div class="meta-row" id="metaRow"></div>
 
       <!-- Image Generation Bar (Phase 3) -->
       <div class="img-gen-bar" id="imgGenBar"></div>
+
+      <!-- Real-time Video Assembly Progress Bar (Sprint 3) -->
+      <div id="assemblyProgressWrap" style="display:none; margin-bottom:20px; border:var(--border); background:var(--white); padding:16px; box-shadow:var(--shadow-lg);">
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:700; margin-bottom:10px; text-transform:uppercase; letter-spacing:1px; display:flex; justify-content:space-between; color:var(--black);">
+          <span id="assemblyStatusText">🎬 Menunggu proses...</span>
+          <span id="assemblyProgressPercent">0%</span>
+        </div>
+        <div style="width:100%; height:20px; border:2px solid var(--black); background:var(--gray); overflow:hidden; position:relative; box-shadow:2px 2px 0 var(--black);">
+          <div id="assemblyProgressBar" style="width:0%; height:100%; background:var(--green); transition:width 0.2s ease;"></div>
+        </div>
+      </div>
 
       <!-- Video Player Wrap (Phase 5) -->
       <div id="videoPlayerWrap" style="display:none; margin-bottom:20px; border:var(--border); background:var(--black); padding:12px; box-shadow:var(--shadow-lg);">
@@ -173,8 +195,10 @@
           <button class="tab" onclick="switchTab('t')">Tips</button>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
+          <button class="dl-btn" id="shareBtn" onclick="shareStoryboard()" style="font-size:11px;background:var(--green);color:var(--white);border-color:var(--black);box-shadow:3px 3px 0 #555;">🔗 Share</button>
           <button class="dl-btn" id="exportImgBtn" onclick="exportAsImage()" style="font-size:11px;background:var(--black);color:var(--yellow);border-color:var(--black);box-shadow:3px 3px 0 #555;">📸 Export Image</button>
           <button class="dl-btn" onclick="exportPDF()" style="font-size:11px;">🖨️ Export PDF</button>
+          <button class="dl-btn" onclick="openThumbnailGenerator()" style="font-size:11px;background:var(--yellow);color:var(--black);border-color:var(--black);box-shadow:3px 3px 0 #555;">🖼️ Thumbnail</button>
         </div>
       </div>
 
@@ -219,6 +243,11 @@
       <div class="settings-grid" id="settingsImgGrid">
         <!-- Dinamis diisi JS -->
       </div>
+
+      <div class="settings-section-label">🎤 TTS Providers (ElevenLabs)</div>
+      <div class="settings-grid" id="settingsTTSGrid">
+        <!-- Dinamis diisi JS -->
+      </div>
     </div>
 
     <div class="settings-footer">
@@ -228,7 +257,112 @@
   </div>
 </div>
 
+<!-- CALENDAR MODAL -->
+<div class="settings-overlay" id="calendarOverlay" onclick="handleCalendarOverlayClick(event)">
+  <div class="settings-panel" id="calendarPanel" style="max-width: 800px; width: 90%;">
+    <div class="settings-header">
+      <div class="settings-title">📅 Content Calendar Outline Generator</div>
+      <button class="settings-close" onclick="closeCalendar()">✕ Close</button>
+    </div>
+
+    <div class="settings-body" style="max-height: 80vh; overflow-y: auto;">
+      <p style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#666;margin-bottom:16px;line-height:1.6;">Buat rencana konten terjadwal (7 hingga 30 hari) untuk niche target kamu dalam hitungan detik. Outline dapat diekspor langsung ke spreadsheet.</p>
+
+      <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:16px;">
+        <div style="flex:1;">
+          <label style="display:block; font-size:11px; font-weight:bold; margin-bottom:6px; color:var(--black);">Target Niche / Topik Konten:</label>
+          <input type="text" id="calendarNiche" placeholder="Misal: Edukasi Saham Pemula, Resep Diet Praktis, ASMR" style="width:100%; padding:10px; border:var(--border); font-family:inherit; box-shadow:2px 2px 0 var(--black); outline:none; background:var(--white); color:var(--black);"/>
+        </div>
+        <div style="width:100%;">
+          <label style="display:block; font-size:11px; font-weight:bold; margin-bottom:6px; color:var(--black);">Jumlah Hari:</label>
+          <select id="calendarDays" style="width:100%; padding:9px; border:var(--border); font-family:'IBM Plex Mono',monospace; font-size:12px; box-shadow:2px 2px 0 var(--black); outline:none; background:var(--white); color:var(--black);">
+            <option value="7">7 Hari (1 Minggu)</option>
+            <option value="14">14 Hari (2 Minggu)</option>
+            <option value="30">30 Hari (1 Bulan)</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="settings-save-btn" id="calendarGenBtn" onclick="generateCalendar()" style="width:100%; margin-bottom:20px; font-size:12px; background:var(--yellow); color:var(--black); font-weight:bold; border:var(--border); box-shadow: 2px 2px 0 var(--black); cursor:pointer;">✨ Generate Calendar Outline</button>
+
+      <div id="calendarStatus" style="font-family:'IBM Plex Mono',monospace; font-size:11px; margin-bottom:12px; display:none; color:var(--black); font-weight:bold;"></div>
+
+      <div id="calendarResultWrap" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:bold; color:var(--black);">🎯 RENCANA KONTEN:</div>
+          <div style="display:flex; gap:8px;">
+            <button class="copy-btn" onclick="exportCalendarCSV()" style="font-size:10px; padding:6px 12px; background:var(--green); color:var(--white); cursor:pointer; border:var(--border); box-shadow:2px 2px 0 var(--black);">📊 Export CSV</button>
+            <button class="copy-btn" onclick="copyCalendarJSON()" style="font-size:10px; padding:6px 12px; cursor:pointer; border:var(--border); box-shadow:2px 2px 0 var(--black); background:var(--white); color:var(--black);">📋 Copy JSON</button>
+          </div>
+        </div>
+        
+        <div style="max-height:300px; overflow-y:auto; border:var(--border); background:var(--gray); padding:10px; display:flex; flex-direction:column; gap:10px;" id="calendarResultList">
+          <!-- Dinamis diisi hasil list hari -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- THUMBNAIL MODAL -->
+<div class="settings-overlay" id="thumbnailOverlay" onclick="handleThumbnailOverlayClick(event)">
+  <div class="settings-panel" id="thumbnailPanel" style="max-width: 600px; width: 90%;">
+    <div class="settings-header">
+      <div class="settings-title">🖼️ AI Thumbnail Generator</div>
+      <button class="settings-close" onclick="closeThumbnailGenerator()">✕ Close</button>
+    </div>
+
+    <div class="settings-body" style="max-height: 80vh; overflow-y: auto;">
+      <p style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#666;margin-bottom:16px;line-height:1.6;">Buat thumbnail video beresolusi tinggi dengan overlay teks neobrutalism kustom menggunakan AI.</p>
+
+      <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:16px;">
+        <div>
+          <label style="display:block; font-size:11px; font-weight:bold; margin-bottom:6px; color:var(--black);">Prompt Visual Thumbnail:</label>
+          <textarea id="thumbPrompt" rows="3" style="width:100%; padding:10px; border:var(--border); font-family:inherit; box-shadow:2px 2px 0 var(--black); outline:none; background:var(--white); color:var(--black); resize:vertical;"></textarea>
+        </div>
+        <div>
+          <label style="display:block; font-size:11px; font-weight:bold; margin-bottom:6px; color:var(--black);">Teks Overlay (Neobrutalism):</label>
+          <input type="text" id="thumbText" style="width:100%; padding:10px; border:var(--border); font-family:inherit; box-shadow:2px 2px 0 var(--black); outline:none; background:var(--white); color:var(--black);"/>
+        </div>
+        <div style="display:flex; gap:12px;">
+          <div style="flex:1;">
+            <label style="display:block; font-size:11px; font-weight:bold; margin-bottom:6px; color:var(--black);">Format Rasio:</label>
+            <select id="thumbRatio" style="width:100%; padding:9px; border:var(--border); font-family:'IBM Plex Mono',monospace; font-size:12px; box-shadow:2px 2px 0 var(--black); outline:none; background:var(--white); color:var(--black);">
+              <option value="16:9">📺 16:9 (Landscape / YouTube)</option>
+              <option value="9:16">📱 9:16 (Vertical / Shorts)</option>
+            </select>
+          </div>
+          <div style="flex:1;">
+            <label style="display:block; font-size:11px; font-weight:bold; margin-bottom:6px; color:var(--black);">Warna Teks Overlay:</label>
+            <select id="thumbColor" style="width:100%; padding:9px; border:var(--border); font-family:'IBM Plex Mono',monospace; font-size:12px; box-shadow:2px 2px 0 var(--black); outline:none; background:var(--white); color:var(--black);">
+              <option value="#FFE500">🟡 Kuning Comic</option>
+              <option value="#FFFFFF">⚪ Putih Bersih</option>
+              <option value="#FF2D20">🔴 Merah Berani</option>
+              <option value="#00C853">🟢 Hijau Neon</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <button class="settings-save-btn" id="thumbGenBtn" onclick="generateThumbnail()" style="width:100%; margin-bottom:20px; font-size:12px; background:var(--yellow); color:var(--black); font-weight:bold; border:var(--border); box-shadow: 2px 2px 0 var(--black); cursor:pointer;">🎨 Generate Thumbnail</button>
+
+      <div id="thumbStatus" style="font-family:'IBM Plex Mono',monospace; font-size:11px; margin-bottom:12px; display:none; color:var(--black); font-weight:bold;"></div>
+
+      <div id="thumbResultWrap" style="display:none; text-align:center;">
+        <div style="border:var(--border); box-shadow:4px 4px 0 var(--black); display:inline-block; overflow:hidden; background:var(--white); margin-bottom:16px; position:relative; max-width: 100%;" id="thumbCanvasContainer">
+          <!-- Canvas preview will render here -->
+        </div>
+        <div>
+          <button class="settings-save-btn" onclick="downloadThumbnail()" style="font-size:12px; background:var(--green); color:var(--white); font-weight:bold; border:var(--border); box-shadow: 2px 2px 0 var(--black); cursor:pointer; padding:8px 24px;">📥 Download Thumbnail (PNG)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Load IndexedDB wrapper (Phase C-03) -->
+<script src="https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd/idb-keyval-iife.min.js"></script>
 <!-- Load external modular JavaScript (Phase 2.4 / Phase 3) -->
-<script src="frontend/js/app.js?v=3.6.2"></script>
+<script src="frontend/js/app.js?v=3.9.0"></script>
 </body>
 </html>

@@ -182,6 +182,26 @@ Phase 3 (Images)   Phase 4 (Audio)   [Done]
 
 ---
 
+## Phase 7: Post-MVP Upgrades (v4.0) — 🔄 Planned
+
+**Goal**: Security hardening + Quality-of-life features berdasarkan hasil code review 2026-07-23
+
+Dokumen lengkap ada di:
+- 📋 **[UPGRADE_PLAN.md](./UPGRADE_PLAN.md)** — Technical spec per fitur
+- 📊 **[UPGRADE_TRACKER.md](./UPGRADE_TRACKER.md)** — Living task tracker & sprint planning
+
+### Ringkasan Phase 7
+
+```
+Phase 0 — Security Fixes   (WAJIB dulu)
+Phase A — Quick Wins       (Scene transitions, BGM, custom upload)
+Phase B — Medium Features  (SSE progress, batch gen, scene improve, share URL)
+Phase C — Game Changers    (Dark mode, ElevenLabs, IndexedDB, quality selector)
+Phase D — Strategic        (Thumbnail gen, watermark, motion video, calendar)
+```
+
+---
+
 ## Decision Log
 
 | Date | Decision | Rationale |
@@ -195,3 +215,4 @@ Phase 3 (Images)   Phase 4 (Audio)   [Done]
 | 2026-07-20 | Settings Panel menggunakan modal overlay bukan dedicated page | Lebih cepat diakses, tidak mengganggu main workflow |
 | 2026-07-20 | html2canvas untuk Export as Image (frontend-only) | Tidak butuh backend baru, library ringan via CDN |
 | 2026-07-20 | Export card menggunakan hidden div yang di-capture html2canvas | Memungkinkan desain template terpisah dari UI utama tanpa konflik style |
+| 2026-07-23 | Pisahkan upgrade planning ke UPGRADE_PLAN.md + UPGRADE_TRACKER.md | Agar tracking post-MVP lebih terstruktur dan tidak bloat ROADMAP.md |

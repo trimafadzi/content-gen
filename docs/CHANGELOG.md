@@ -10,11 +10,75 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 ## [Unreleased]
 
 ### Planned
-- Custom transition effects between scenes (fade, blur, cross-zoom)
-- Multi-track background music mixer
-- Premium ElevenLabs integration for high quality voice models
+- Cloud Storage integrations (S3 / GCS)
+- Multi-user profiles
 
 ---
+
+## [3.11.0] — 2026-07-23
+
+### Added
+- ✨ **D-01 AI Thumbnail Generator**: Fitur pembuat gambar sampul (thumbnail) YouTube/Shorts beresolusi tinggi menggunakan AI (Pollinations / OpenAI) dilengkapi dengan overlay teks neobrutalism kustom yang digambar langsung di sisi client (HTML5 Canvas).
+- ✨ **D-02 Voice Preview (ElevenLabs Real-time Preview)**: Menambahkan tombol **🔊 Test** di sebelah input ElevenLabs Voice ID pada settings modal untuk mensintesis kalimat pendek ("Testing Voice ID from StoryBOARD Generator") secara instan guna memastikan kecocokan suara sebelum rendering.
+- ✨ **D-04 Content Calendar Generator**: Menambahkan menu kalender konten (7-30 hari) di sidebar untuk merancang outline konten terjadwal. Dilengkapi tombol ekspor ke format CSV / Google Sheets, salin kode JSON, serta integrasi tombol "🎬 Create Storyboard" per-hari untuk langsung membongkar konsep terpilih ke editor utama.
+
+---
+
+## [3.10.0] — 2026-07-23
+
+### Added
+- ✨ **C-01 Dark Mode**: Dukungan mode gelap premium (Neobrutalism Dark Mode) dengan inverting variables CSS (`body[data-theme="dark"]`), tombol toggle 🌓 di header, auto-detect preference system, serta persistensi preferensi user.
+- ✨ **C-02 ElevenLabs TTS**: Integrasi opsi pengisi suara premium ElevenLabs. Menyediakan key input API & Voice ID di settings modal, MD5 audio caching terintegrasi, serta fallback otomatis ke Google TTS jika request terhambat.
+- ✨ **C-03 IndexedDB Migration**: Migrasi total penyimpanan riwayat storyboard (History) dari LocalStorage ke IndexedDB (via `idb-keyval`) untuk menghindari batasan kuota 5MB browser pada storyboards yang berukuran besar.
+- ✨ **C-04 Video Quality Selector**: Menambahkan pilihan resolusi rendering video (720p Fast, 1080p Standard, 1440p High) di samping tombol rakit video. Mengubah dimensi output video, font subtitle, posisi drawtext, serta crf/preset FFmpeg secara dinamis.
+
+---
+
+## [3.9.0] — 2026-07-23
+
+### Added
+- ✨ **B-01 Real-time Progress Bar (SSE)**: Dukungan streaming progress per-scene dan status pemrosesan video generator secara realtime lewat Server-Sent Events (SSE) `/api/video/progress/:videoId`.
+- ✨ **B-02 Batch Storyboard Generation**: Dukungan pembuatan 3 variasi storyboard sekaligus dari sidebar menggunakan 3 request paralel ke LLM (dengan prompt focus emosi, edukasi, dan humor/viral). Ditambahkan pula tab switcher variasi storyboard (Variasi 1 | 2 | 3) di result area.
+- ✨ **B-03 AI Scene Improvement**: Menambahkan tombol `✨ Improve Scene` di setiap scene card untuk memperbaiki deskripsi visual, camera angle, sfx, narasi, dan action secara otomatis via LLM secara modular tanpa regenerasi keseluruhan storyboard.
+- ✨ **B-04 Shareable URL**: Dukungan membagikan storyboard via base64 encoded URL parameters (`?sb=...`). Dilengkapi tombol `🔗 Share` di tab bar untuk auto-copy tautan ke clipboard serta auto-decode loader di lifecycle initialization page.
+
+---
+
+## [3.8.0] — 2026-07-23
+
+### Added
+- ✨ **A-01 Scene Transitions**: Menambahkan dukungan transisi visual antar scene di video generator:
+  - `Cut` (tanpa transisi)
+  - `Fade` (transisi fade-in & fade-out per scene)
+  - `Zoom` (efek Ken Burns panning zoom dinamis pada gambar static)
+- ✨ **A-02 Background Music Library**: Integrasi 8 track loop BGM gratis yang dimixing langsung ke video assembly via FFmpeg `amix` filter complex:
+  - Lofi Chill, Energetic Upbeat, Cinematic Epic, Acoustic Soft, Electronic Minimal, Jazz Smooth, Nature Ambient, dan Corporate Clean.
+  - Ditambahkan slider kontrol volume BGM (0% - 50%) dan tombol preplay audio di control bar.
+- ✨ **A-03 Custom Image Upload**: Dukungan upload gambar custom berformat JPG/PNG/WEBP langsung dari scene card menggunakan file inputs dan multer middleware, di-link ke video generator secara transparan.
+
+---
+
+## [3.7.0] — 2026-07-23
+
+### Security Hardening (Sprint 1 — Phase 0)
+- 🔒 **SEC-01 Rate Limiting**: Tambah `express-rate-limit` middleware per route:
+  - `/api/llm/generate` — max 20 req/menit
+  - `/api/image/generate` — max 10 req/menit
+  - `/api/video/assemble` — max 5 req/menit
+  - `/api/tts/generate` — max 30 req/menit
+  - Response `429 Too Many Requests` dengan pesan error yang jelas
+- 🔒 **SEC-02 CORS Whitelist**: Ganti `cors()` terbuka dengan whitelist origin. Allow localhost:3456, 127.0.0.1:3456, 8080, 5500 + env var `ALLOWED_ORIGINS` untuk production deployment.
+- 🔒 **SEC-03 FFmpeg Sanitization**: Tambah `sanitizeForFFmpeg()` function yang meng-strip shell metacharacters (`\`, `'`, `:`) dan karakter berbahaya dari `scene.narration` sebelum masuk FFmpeg `drawtext` filter. Mencegah command injection.
+- 🔒 **SEC-04 Temp File Auto-Cleanup**: Auto-cleanup file di `/backend/temp/` setiap 15 menit. Video assembled (prefix `vid_`) dihapus setelah 1 jam. TTS cache MP3 (prefix `tts_`) dihapus setelah 24 jam. Mencegah disk leak.
+- 🔒 **SEC-05 Helmet Security Headers**: Tambah `helmet.js` untuk set standard HTTP security headers (X-Frame-Options, X-Content-Type-Options, dll). CSP dinonaktifkan karena frontend menggunakan inline scripts.
+
+### Improvements
+- 📦 **package.json**: Update version ke 3.7.0, `dev` script sekarang menggunakan `nodemon` untuk auto-restart saat development.
+- ℹ️ **Health Check v3.7.0**: `/api/health` response sekarang include status semua security features.
+- 💡 **A-04 Custom Confirm Modal**: Ganti semua `window.alert()` di frontend dengan `showConfirm()` custom modal bergaya neobrutalism. Modal punya animasi fade-in + slide-up, tombol Batal/OK, dismiss via ESC atau click outside. Affected: 2 validasi di `assembleVideo()`, error handling diganti ke `showToast()`.
+
+---
+
 
 ## [3.6.1] — 2026-07-20
 

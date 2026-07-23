@@ -1,32 +1,152 @@
 /**
  * StoryBOARD GEN — Backend Proxy Server
- * 
- * Handles LLM API calls to avoid CORS issues when calling from the browser.
- * Also serves the frontend static files.
- * 
+ * v3.7.0 — Security hardening (rate limiting, CORS whitelist, FFmpeg sanitization,
+ *           temp file auto-cleanup, Helmet security headers)
+ *
  * Routes:
- *   POST /api/llm/generate — Proxy LLM requests to various providers
- *   GET  /                 — Serve frontend
+ *   POST /api/llm/generate    — Proxy LLM requests to various providers
+ *   POST /api/image/generate  — Proxy image generation requests
+ *   POST /api/tts/generate    — Text-to-Speech via Google TTS
+ *   POST /api/video/assemble  — FFmpeg video assembly pipeline
+ *   GET  /api/health          — Health check
+ *   GET  /                    — Serve frontend
  */
 
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
-const googleTTS = require('google-tts-api');
+const express    = require('express');
+const cors       = require('cors');
+const helmet     = require('helmet');
+const rateLimit  = require('express-rate-limit');
+const path       = require('path');
+const fs         = require('fs');
+const googleTTS  = require('google-tts-api');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3456;
 
-// Create temp directory for saving TTS files
+// Create temp directory for saving TTS/video files
 const tempDir = path.join(__dirname, 'temp');
 if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
 }
 
-// ─── MIDDLEWARE ────────────────────────────────────────────────
-app.use(cors());
+// ─── SEC-05: SECURITY HEADERS (Helmet) ────────────────────────
+// CSP disabled — frontend uses inline scripts & CDN resources
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
+
+// ─── SEC-02: CORS WHITELIST ────────────────────────────────────
+// Allow localhost development + any ALLOWED_ORIGINS env var for production
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || [
+  'http://localhost:3456',
+  'http://127.0.0.1:3456',
+  'http://localhost:8080',
+  'http://localhost:5500'
+].join(',')).split(',').map(o => o.trim()).filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Postman, same-origin server calls)
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS] Blocked request from: ${origin}`);
+      callback(new Error(`CORS policy: origin "${origin}" not allowed`));
+    }
+  },
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json({ limit: '5mb' }));
+
+// ─── SEC-01: RATE LIMITING ─────────────────────────────────────
+const llmLimiter = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Rate limit exceeded: max 20 LLM requests/minute. Try again shortly.' }
+});
+
+const imgLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Rate limit exceeded: max 10 image requests/minute.' }
+});
+
+const videoLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Rate limit exceeded: max 5 video assembly requests/minute.' }
+});
+
+const ttsLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Rate limit exceeded: max 30 TTS requests/minute.' }
+});
+
+// Apply rate limiters to API routes
+app.use('/api/llm/generate',   llmLimiter);
+app.use('/api/image/generate', imgLimiter);
+app.use('/api/video/assemble', videoLimiter);
+app.use('/api/tts/generate',   ttsLimiter);
+
+// ─── SEC-03: FFMPEG INPUT SANITIZER ───────────────────────────
+/**
+ * Sanitize text before embedding into FFmpeg drawtext filter.
+ * Strips shell metacharacters that could cause command injection.
+ */
+function sanitizeForFFmpeg(text) {
+  if (!text || typeof text !== 'string') return '';
+  return text
+    .replace(/[\\':]/g, ' ')           // strip shell-dangerous chars: \ ' :
+    .replace(/[\n\r]+/g, ' ')          // flatten newlines
+    .replace(/[^\w\s.,!?()\-–—%&@#]/g, '') // keep only safe printable chars
+    .replace(/\s{2,}/g, ' ')           // collapse multiple spaces
+    .trim()
+    .substring(0, 500);                // cap length to prevent abuse
+}
+
+// ─── SEC-04: TEMP FILE AUTO-CLEANUP ───────────────────────────
+const TEMP_VIDEO_MAX_AGE_MS = 60 * 60 * 1000;      // 1 hour for assembled videos
+const TEMP_TTS_MAX_AGE_MS   = 24 * 60 * 60 * 1000; // 24 hours for TTS MP3 cache
+
+function cleanupTempFiles() {
+  const now = Date.now();
+  let cleaned = 0;
+  try {
+    const files = fs.readdirSync(tempDir);
+    for (const filename of files) {
+      const filePath = path.join(tempDir, filename);
+      let stat;
+      try { stat = fs.statSync(filePath); } catch { continue; }
+      const age = now - stat.mtimeMs;
+      if (filename.startsWith('vid_') && age > TEMP_VIDEO_MAX_AGE_MS) {
+        fs.unlinkSync(filePath); cleaned++;
+      } else if (filename.startsWith('tts_') && age > TEMP_TTS_MAX_AGE_MS) {
+        fs.unlinkSync(filePath); cleaned++;
+      }
+    }
+    if (cleaned > 0) {
+      console.log(`[Cleanup] 🗑️  Removed ${cleaned} stale temp file(s)`);
+    }
+  } catch (err) {
+    console.error('[Cleanup] ❌ Error during cleanup:', err.message);
+  }
+}
+
+// Run cleanup on startup, then every 15 minutes
+cleanupTempFiles();
+setInterval(cleanupTempFiles, 15 * 60 * 1000);
 
 // ─── PROVIDER ENDPOINTS ───────────────────────────────────────
 const ENDPOINTS = {
@@ -171,6 +291,37 @@ app.post('/api/llm/generate', async (req, res) => {
       success: false,
       error: err.message || 'Internal server error'
     });
+  }
+});
+
+// ─── ROUTE: POST /api/upload/scene-image ──────────────────────
+const multer = require('multer');
+const upload = multer({
+  dest: tempDir,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    cb(null, allowedTypes.includes(file.mimetype));
+  }
+});
+
+app.post('/api/upload/scene-image', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: 'No valid image file uploaded' });
+  }
+  try {
+    const ext = path.extname(req.file.originalname) || '.jpg';
+    const newFileName = `${req.file.filename}${ext}`;
+    const newPath = path.join(tempDir, newFileName);
+    fs.renameSync(req.file.path, newPath);
+    
+    res.json({ 
+      success: true, 
+      imageUrl: `/temp/${newFileName}` 
+    });
+  } catch (err) {
+    console.error(`[Upload] ❌ Error renaming file:`, err.message);
+    res.status(500).json({ success: false, error: 'Failed to process uploaded image' });
   }
 });
 
@@ -342,7 +493,7 @@ app.post('/api/image/generate', async (req, res) => {
 
 // ─── ROUTE: POST /api/tts/generate ────────────────────────────
 app.post('/api/tts/generate', async (req, res) => {
-  const { text, lang } = req.body;
+  const { text, lang, elevenlabsApiKey, elevenlabsVoiceId } = req.body;
 
   if (!text) {
     return res.status(400).json({
@@ -352,18 +503,21 @@ app.post('/api/tts/generate', async (req, res) => {
   }
 
   const cleanText = text.trim();
-  const language = lang || 'id'; // default to indonesian
+  const language = lang || 'id';
 
   try {
-    // Hash text + lang to avoid recreating duplicate audio files
     const crypto = require('crypto');
-    const textHash = crypto.createHash('md5').update(`${cleanText}_${language}`).digest('hex');
+    const voiceId = elevenlabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
+    
+    const textHash = elevenlabsApiKey
+      ? crypto.createHash('md5').update(`${cleanText}_el_${voiceId}`).digest('hex')
+      : crypto.createHash('md5').update(`${cleanText}_${language}`).digest('hex');
+      
     const fileName = `tts_${textHash}.mp3`;
     const filePath = path.join(tempDir, fileName);
 
-    console.log(`[TTS] Request: "${cleanText.substring(0, 30)}..." [lang: ${language}]`);
+    console.log(`[TTS] Request: "${cleanText.substring(0, 30)}..." [ElevenLabs: ${!!elevenlabsApiKey}]`);
 
-    // Check cache
     if (fs.existsSync(filePath)) {
       console.log(`[TTS] ✅ Cache Hit: ${fileName}`);
       return res.json({
@@ -372,21 +526,49 @@ app.post('/api/tts/generate', async (req, res) => {
       });
     }
 
-    // Get TTS URL
-    const url = googleTTS.getAudioUrl(cleanText, {
-      lang: language === 'English' ? 'en' : 'id',
-      slow: false,
-      host: 'https://translate.google.com'
-    });
+    if (elevenlabsApiKey) {
+      console.log(`[ElevenLabs] Fetching voice generation from ElevenLabs API for: ${voiceId}`);
+      const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': elevenlabsApiKey,
+          'Content-Type': 'application/json',
+          'accept': 'audio/mpeg'
+        },
+        body: JSON.stringify({
+          text: cleanText,
+          model_id: 'eleven_multilingual_v2',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75
+          }
+        })
+      });
+      
+      if (!elRes.ok) {
+        const errorText = await elRes.text();
+        throw new Error(`ElevenLabs API error: ${elRes.status} - ${errorText}`);
+      }
+      
+      const buffer = Buffer.from(await elRes.arrayBuffer());
+      fs.writeFileSync(filePath, buffer);
+    } else {
+      const url = googleTTS.getAudioUrl(cleanText, {
+        lang: language === 'English' ? 'en' : 'id',
+        slow: false,
+        host: 'https://translate.google.com'
+      });
 
-    console.log(`[TTS] Fetching from: ${url}`);
-    const audioRes = await fetch(url);
-    if (!audioRes.ok) {
-      throw new Error(`Google TTS request failed with status: ${audioRes.status}`);
+      console.log(`[TTS] Fetching from Google TTS: ${url}`);
+      const audioRes = await fetch(url);
+      if (!audioRes.ok) {
+        throw new Error(`Google TTS request failed with status: ${audioRes.status}`);
+      }
+
+      const buffer = Buffer.from(await audioRes.arrayBuffer());
+      fs.writeFileSync(filePath, buffer);
     }
 
-    const buffer = Buffer.from(await audioRes.arrayBuffer());
-    fs.writeFileSync(filePath, buffer);
     console.log(`[TTS] ✅ Saved: ${fileName}`);
 
     res.json({
@@ -461,8 +643,45 @@ function wrapText(text, maxChars) {
 }
 
 // ─── ROUTE: POST /api/video/assemble ──────────────────────────
+// Map to track progress for ongoing video assemblies
+const assemblyProgress = new Map();
+
+// ─── ROUTE: GET /api/video/progress/:videoId ──────────────────
+app.get('/api/video/progress/:videoId', (req, res) => {
+  const { videoId } = req.params;
+  
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
+  console.log(`[SSE] Client connected for video progress: ${videoId}`);
+
+  const keepAlive = setInterval(() => {
+    res.write(': keepalive\n\n');
+  }, 15000);
+
+  const pollInterval = setInterval(() => {
+    const progress = assemblyProgress.get(videoId);
+    if (progress) {
+      res.write(`data: ${JSON.stringify(progress)}\n\n`);
+      if (progress.done || progress.error) {
+        clearInterval(pollInterval);
+        clearInterval(keepAlive);
+        res.end();
+      }
+    }
+  }, 300);
+
+  req.on('close', () => {
+    console.log(`[SSE] Client disconnected for video: ${videoId}`);
+    clearInterval(pollInterval);
+    clearInterval(keepAlive);
+  });
+});
+
 app.post('/api/video/assemble', async (req, res) => {
-  const { storyboard, images } = req.body;
+  const { storyboard, images, transition = 'cut', bgmTrack = 'none', bgmVolume = 15, videoId: reqVideoId, quality = '720p', elevenlabsApiKey, elevenlabsVoiceId } = req.body;
 
   if (!storyboard || !storyboard.scenes || storyboard.scenes.length === 0) {
     return res.status(400).json({
@@ -471,16 +690,29 @@ app.post('/api/video/assemble', async (req, res) => {
     });
   }
 
-  const videoId = `vid_${Date.now()}`;
-  console.log(`[Video] 🎬 Initiating assembly for video: ${videoId}`);
+  const videoId = reqVideoId || `vid_${Date.now()}`;
+  console.log(`[Video] 🎬 Initiating assembly for video: ${videoId} with transition: ${transition}, quality: ${quality}`);
+
+  const QUALITY_PRESETS = {
+    '720p':  { multiplier: 1.0, crf: 23, preset: 'fast' },
+    '1080p': { multiplier: 1.5, crf: 20, preset: 'medium' },
+    '1440p': { multiplier: 2.0, crf: 18, preset: 'slow' }
+  };
+  
+  const qPreset = QUALITY_PRESETS[quality] || QUALITY_PRESETS['720p'];
 
   const aspect = storyboard.aspect_ratio || '9:16';
   const isVertical = aspect === '9:16';
-  const width = isVertical ? 720 : 1280;
-  const height = isVertical ? 1280 : 720;
+  
+  const baseWidth = isVertical ? 720 : 1280;
+  const baseHeight = isVertical ? 1280 : 720;
+
+  const width = Math.round(baseWidth * qPreset.multiplier);
+  const height = Math.round(baseHeight * qPreset.multiplier);
+  
   const subtitleMaxChars = isVertical ? 26 : 52;
-  const subtitleFontSize = isVertical ? 30 : 26;
-  const subtitleYPos = isVertical ? 'h-240' : 'h-120';
+  const subtitleFontSize = Math.round((isVertical ? 30 : 26) * qPreset.multiplier);
+  const subtitleYPos = isVertical ? `h-${Math.round(240 * qPreset.multiplier)}` : `h-${Math.round(120 * qPreset.multiplier)}`;
 
   const scenes = storyboard.scenes;
   const clipPaths = [];
@@ -490,6 +722,11 @@ app.post('/api/video/assemble', async (req, res) => {
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
       const sceneNum = scene.scene_num || (i + 1);
+
+      assemblyProgress.set(videoId, {
+        pct: Math.round((i / scenes.length) * 80),
+        status: `Rendering scene ${sceneNum}/${scenes.length}...`
+      });
 
       console.log(`[Video] Processing Scene ${sceneNum}/${scenes.length}...`);
 
@@ -538,31 +775,72 @@ app.post('/api/video/assemble', async (req, res) => {
       if (!localAudioPath && scene.narration && scene.narration !== 'null' && scene.narration.trim() !== '') {
         console.log(`[Video] Scene ${sceneNum}: Generating missing TTS for: "${scene.narration.substring(0, 20)}..."`);
         const cleanText = scene.narration.trim();
-        const ttsUrl = googleTTS.getAudioUrl(cleanText, {
-          lang: storyboard.platform === 'YouTube' ? 'en' : 'id',
-          slow: false,
-          host: 'https://translate.google.com'
-        });
         const generatedAudioPath = path.join(tempDir, `tts_fallback_${videoId}_${i}.mp3`);
         tempFiles.push(generatedAudioPath);
 
-        const audioRes = await fetch(ttsUrl);
-        if (audioRes.ok) {
-          fs.writeFileSync(generatedAudioPath, Buffer.from(await audioRes.arrayBuffer()));
-          localAudioPath = generatedAudioPath;
-          duration = getAudioDuration(localAudioPath);
-          console.log(`[Video] Scene ${sceneNum}: Generated fallback TTS. Duration: ${duration}s`);
+        if (elevenlabsApiKey) {
+          try {
+            const voiceId = elevenlabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
+            console.log(`[Video] Scene ${sceneNum}: Generating via ElevenLabs voice: ${voiceId}`);
+            const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+              method: 'POST',
+              headers: {
+                'xi-api-key': elevenlabsApiKey,
+                'Content-Type': 'application/json',
+                'accept': 'audio/mpeg'
+              },
+              body: JSON.stringify({
+                text: cleanText,
+                model_id: 'eleven_multilingual_v2',
+                voice_settings: {
+                  stability: 0.5,
+                  similarity_boost: 0.75
+                }
+              })
+            });
+            if (elRes.ok) {
+              fs.writeFileSync(generatedAudioPath, Buffer.from(await elRes.arrayBuffer()));
+              localAudioPath = generatedAudioPath;
+              duration = getAudioDuration(localAudioPath);
+              console.log(`[Video] Scene ${sceneNum}: Generated ElevenLabs fallback. Duration: ${duration}s`);
+            } else {
+              const elErr = await elRes.text();
+              console.error(`[Video] ElevenLabs fallback request failed: ${elRes.status} - ${elErr}`);
+            }
+          } catch (e) {
+            console.error(`[Video] ElevenLabs fallback error:`, e.message);
+          }
+        }
+
+        // Fallback to Google TTS if not ElevenLabs or if ElevenLabs fetch failed
+        if (!localAudioPath) {
+          const ttsUrl = googleTTS.getAudioUrl(cleanText, {
+            lang: storyboard.platform === 'YouTube' ? 'en' : 'id',
+            slow: false,
+            host: 'https://translate.google.com'
+          });
+          const audioRes = await fetch(ttsUrl);
+          if (audioRes.ok) {
+            fs.writeFileSync(generatedAudioPath, Buffer.from(await audioRes.arrayBuffer()));
+            localAudioPath = generatedAudioPath;
+            duration = getAudioDuration(localAudioPath);
+            console.log(`[Video] Scene ${sceneNum}: Generated Google TTS fallback. Duration: ${duration}s`);
+          }
         }
       }
 
       // 3. Write subtitle file (Text overlay)
+      // SEC-03: Sanitize narration before using in FFmpeg drawtext filter
       let localSubPath = null;
       if (scene.narration && scene.narration !== 'null' && scene.narration.trim() !== '') {
-        const wrappedText = wrapText(scene.narration.trim().replace(/^"|"$/g, ''), subtitleMaxChars);
-        const subFileName = `${videoId}_sub_${i}.txt`;
-        localSubPath = path.join(tempDir, subFileName);
-        tempFiles.push(localSubPath);
-        fs.writeFileSync(localSubPath, wrappedText);
+        const safeNarration = sanitizeForFFmpeg(scene.narration.trim().replace(/^"|"$/g, ''));
+        if (safeNarration) {
+          const wrappedText = wrapText(safeNarration, subtitleMaxChars);
+          const subFileName = `${videoId}_sub_${i}.txt`;
+          localSubPath = path.join(tempDir, subFileName);
+          tempFiles.push(localSubPath);
+          fs.writeFileSync(localSubPath, wrappedText);
+        }
       }
 
       // 4. Render video clip for this scene
@@ -572,7 +850,17 @@ app.post('/api/video/assemble', async (req, res) => {
 
       // FFmpeg options
       // scale aspect ratio and crop center to fit canvas exactly
-      const videoFilter = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`;
+      let videoFilter = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`;
+      
+      if (transition === 'zoom') {
+        const totalFrames = Math.ceil(duration * 25);
+        videoFilter = `scale=${width*2}:${height*2},zoompan=z='min(zoom+0.0015,1.5)':d=${totalFrames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${width}x${height}`;
+      }
+
+      if (transition === 'fade') {
+        const d = Math.min(0.4, duration / 2);
+        videoFilter += `,fade=t=in:st=0:d=${d},fade=t=out:st=${(duration - d).toFixed(2)}:d=${d}`;
+      }
       
       // Subtitle burn-in filter (DejaVuSans Bold, yellow comic fill, bold black outline)
       const drawTextFilter = localSubPath 
@@ -583,12 +871,12 @@ app.post('/api/video/assemble', async (req, res) => {
       let ffmpegCmd = '';
       if (localAudioPath) {
         ffmpegCmd = `ffmpeg -y -loop 1 -i "${localImgPath}" -i "${localAudioPath}" ` +
-                    `-vf "${videoFilter}${drawTextFilter}" -c:v libx264 -t ${duration} ` +
+                    `-vf "${videoFilter}${drawTextFilter}" -c:v libx264 -crf ${qPreset.crf} -preset ${qPreset.preset} -t ${duration} ` +
                     `-pix_fmt yuv420p -c:a aac -b:a 192k -shortest "${clipPath}"`;
       } else {
         // Fallback to silent clip if no narration exists
         ffmpegCmd = `ffmpeg -y -loop 1 -i "${localImgPath}" -f lavfi -i anullsrc=r=44100:cl=mono ` +
-                    `-vf "${videoFilter}${drawTextFilter}" -c:v libx264 -t ${duration} ` +
+                    `-vf "${videoFilter}${drawTextFilter}" -c:v libx264 -crf ${qPreset.crf} -preset ${qPreset.preset} -t ${duration} ` +
                     `-pix_fmt yuv420p -c:a aac -shortest "${clipPath}"`;
       }
 
@@ -598,20 +886,60 @@ app.post('/api/video/assemble', async (req, res) => {
     }
 
     // 5. Concatenate all clips
+    assemblyProgress.set(videoId, {
+      pct: 82,
+      status: 'Merging scene clips...'
+    });
+
     const listFilePath = path.join(tempDir, `${videoId}_list.txt`);
     tempFiles.push(listFilePath);
 
     const listContent = clipPaths.map(p => `file '${p.replace(/'/g, "'\\''")}'`).join('\n');
     fs.writeFileSync(listFilePath, listContent);
 
+    const intermediateVideoName = `${videoId}_intermediate.mp4`;
+    const intermediateVideoPath = path.join(tempDir, intermediateVideoName);
+
+    const concatCmd = `ffmpeg -y -f concat -safe 0 -i "${listFilePath}" -c copy "${intermediateVideoPath}"`;
+    console.log(`[Video] Concatenating clips into intermediate output: ${intermediateVideoName}`);
+    await runCommand(concatCmd);
+    tempFiles.push(intermediateVideoPath);
+
     const finalVideoName = `${videoId}_final.mp4`;
     const finalVideoPath = path.join(tempDir, finalVideoName);
 
-    const concatCmd = `ffmpeg -y -f concat -safe 0 -i "${listFilePath}" -c copy "${finalVideoPath}"`;
-    console.log(`[Video] Concatenating clips into final output: ${finalVideoName}`);
-    await runCommand(concatCmd);
+    if (bgmTrack && bgmTrack !== 'none') {
+      assemblyProgress.set(videoId, {
+        pct: 90,
+        status: `Mixing background music: ${bgmTrack}...`
+      });
+      const bgmPath = path.join(__dirname, 'assets', 'music', `${bgmTrack}.mp3`);
+      if (fs.existsSync(bgmPath)) {
+        console.log(`[Video] Mixing BGM track: ${bgmTrack} at volume: ${bgmVolume}%`);
+        const vol = parseFloat(bgmVolume) / 100;
+        
+        // Mix intermediate video audio stream with BGM stream
+        const bgmCmd = `ffmpeg -y -i "${intermediateVideoPath}" -stream_loop -1 -i "${bgmPath}" `
+          + `-filter_complex "[1:a]volume=${vol}[bgm];[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]" `
+          + `-map 0:v -map "[aout]" -c:v copy -c:a aac -shortest "${finalVideoPath}"`;
+        
+        await runCommand(bgmCmd);
+      } else {
+        console.warn(`[Video] BGM track "${bgmPath}" not found, skipping mix.`);
+        fs.renameSync(intermediateVideoPath, finalVideoPath);
+      }
+    } else {
+      fs.renameSync(intermediateVideoPath, finalVideoPath);
+    }
 
     console.log(`[Video] 🏁 Video assembly completed successfully: ${finalVideoName}`);
+    
+    assemblyProgress.set(videoId, {
+      pct: 100,
+      done: true,
+      videoUrl: `/temp/${finalVideoName}`,
+      status: `Video assembly completed successfully!`
+    });
 
     // Clean up temporary files except the final video
     for (const f of tempFiles) {
@@ -623,11 +951,16 @@ app.post('/api/video/assemble', async (req, res) => {
     res.json({
       success: true,
       videoUrl: `/temp/${finalVideoName}`,
-      duration_total: clipPaths.length * 3.5 // rough approximate or track it precisely
+      duration_total: clipPaths.length * 3.5
     });
 
   } catch (err) {
     console.error(`[Video] ❌ Assembly failed:`, err.message);
+    assemblyProgress.set(videoId, {
+      pct: 100,
+      error: err.message || 'Failed to assemble video',
+      status: `Assembly failed: ${err.message}`
+    });
     // Cleanup any created temp files on failure
     for (const f of tempFiles) {
       if (fs.existsSync(f)) {
@@ -645,14 +978,46 @@ app.post('/api/video/assemble', async (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    version: '1.0.0',
+    version: '3.11.0',
     uptime: process.uptime(),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    security: {
+      rateLimit: 'active',
+      cors:      'whitelist',
+      helmet:    'active',
+      ffmpegSanitize: 'active',
+      tempCleanup: 'active (15min interval)'
+    }
   });
 });
 
-// Serve temp audio files statically
+// ─── ROUTE: GET /api/music/list ───────────────────────────────
+app.get('/api/music/list', (req, res) => {
+  try {
+    const musicDir = path.join(__dirname, 'assets', 'music');
+    if (!fs.existsSync(musicDir)) {
+      return res.json({ success: true, tracks: [] });
+    }
+    const files = fs.readdirSync(musicDir);
+    const tracks = files
+      .filter(f => f.endsWith('.mp3'))
+      .map(f => {
+        const id = f.replace('.mp3', '');
+        return {
+          id: id,
+          url: `/assets/music/${f}`,
+          label: id.replace(/_/g, ' ').toUpperCase()
+        };
+      });
+    res.json({ success: true, tracks });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Serve temp audio and assets statically
 app.use('/temp', express.static(tempDir));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // ─── STATIC FILES (after API routes) ──────────────────────────
 app.use(express.static(path.join(__dirname, '..')));
